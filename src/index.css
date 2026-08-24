@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    background-color: #090d16;
+    color: #f1f5f9;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* iOS Safe Area Utilities */
+.pb-safe {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+.pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+/* Touch Friendly Scrollbar & Recharts Touch Fix */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+.recharts-wrapper {
+  touch-action: pan-y !important;
+}
+
+/* Glassmorphic Cards */
+.mobile-card-glass {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+/* Active State Micro-Animations */
+.active-press {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.active-press:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/* Recharts Big Bottom Slider (Brush) Custom Styling */
+.recharts-brush-slide {
+  fill: rgba(16, 185, 129, 0.2) !important;
+}
+.recharts-brush-traveller rect {
+  fill: #10b981 !important;
+  stroke: #ffffff !important;
+  stroke-width: 2px !important;
+  rx: 6px;
+  cursor: ew-resize;
+}
+.recharts-brush-traveller line {
+  stroke: #090d16 !important;
+  stroke-width: 2.5px !important;
+}
+.recharts-brush-texts {
+  fill: #cbd5e1 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  font-family: monospace;
+}
