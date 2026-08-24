@@ -11,6 +11,22 @@
     <meta name="apple-mobile-web-app-title" content="MF Pulse" />
     <meta name="theme-color" content="#090d16" />
     <title>MF Pulse - Mutual Fund Portfolio</title>
+    <!-- Netlify & Third-Party Script Crash Shield -->
+    <script>
+      window.addEventListener('error', function (event) {
+        if (event.filename && (event.filename.includes('netlify') || event.filename.includes('identity.netlify.com'))) {
+          event.preventDefault();
+          console.warn('[Netlify Shield] Prevented crash from external injected script:', event.message);
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        if (event.reason && String(event.reason).includes('netlify')) {
+          event.preventDefault();
+          console.warn('[Netlify Shield] Prevented crash from external promise rejection:', event.reason);
+        }
+      });
+    </script>
   </head>
   <body class="bg-[#090d16] text-slate-100 antialiased overscroll-y-none select-none md:select-text">
     <div id="root"></div>
