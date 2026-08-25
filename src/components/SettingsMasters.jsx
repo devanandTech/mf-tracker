@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
+import ExcelExportModal from './ExcelExportModal.jsx';
 import {
   Settings,
   Building2,
@@ -12,7 +13,8 @@ import {
   RefreshCw,
   AlertTriangle,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function SettingsMasters() {
@@ -30,6 +32,8 @@ export default function SettingsMasters() {
     exportData,
     importData
   } = usePortfolio();
+
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
@@ -63,12 +67,7 @@ export default function SettingsMasters() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target.result);
-        importData(json);
-      } catch (err) {
-        alert('Invalid JSON file format');
-      }
+      importData(event.target.result);
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -94,6 +93,14 @@ export default function SettingsMasters() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsExcelModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs font-bold active-press"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Excel (.CSV) Report</span>
+          </button>
+
           <button
             onClick={exportData}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-2xl text-xs font-bold active-press"
@@ -265,6 +272,12 @@ export default function SettingsMasters() {
           </button>
         </div>
       </div>
+
+      {/* Excel Export Modal */}
+      <ExcelExportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+      />
 
     </div>
   );

@@ -19,6 +19,7 @@ import {
   calculateAMCBreakdown
 } from '../utils/calculations.js';
 import { get15DayAlertStatus } from '../utils/interestUtils.js';
+import { encryptData, decryptData } from '../utils/cryptoUtils.js';
 
 const PortfolioContext = createContext(null);
 
@@ -498,25 +499,97 @@ export function PortfolioProvider({ children }) {
     showToast('Sample wealth portfolio restored!');
   };
 
-  const exportData = () => {
+  const exportData = async (customPassphrase = null) => {
     const payload = { accounts, transactions, fds, rds, insurances };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+    const rawJson = JSON.stringify(payload, null, 2);
+
+    let finalContent = rawJson;
+    let isEncryptedFile = false;
+
+    // Handle React SyntheticEvent objects when passed from onClick={exportData}
+    let pass = (typeof customPassphrase === 'string')
+      ? customPassphrase
+      : window.prompt("Security Lock: Enter an Encryption Password to secure your backup file (Or leave empty for standard JSON):");
+
+    if (pass && typeof pass === 'string' && pass.trim()) {
+      try {
+        finalContent = await encryptData(rawJson, pass.trim());
+        isEncryptedFile = true;
+        showToast('Backup encrypted with AES-256!', 'success');
+      } catch (err) {
+        showToast('Encryption failed: ' + err.message, 'error');
+        return;
+      }
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(finalContent);
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `Wealth_Portfolio_Backup_${new Date().toISOString().split('T')[0]}.json`);
+    const prefix = isEncryptedFile ? 'Encrypted_Wealth_Portfolio' : 'Wealth_Portfolio_Backup';
+    downloadAnchor.setAttribute("download", `${prefix}_${new Date().toISOString().split('T')[0]}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
-    showToast('Portfolio backup exported to JSON');
+    
+    if (!isEncryptedFile) {
+      showToast('Standard unencrypted portfolio backup exported');
+    }
   };
 
-  const importData = (importedData) => {
-    if (importedData && typeof importedData === 'object') {
-      if (Array.isArray(importedData.transactions)) setTransactions(importedData.transactions);
-      if (Array.isArray(importedData.fds)) setFds(importedData.fds);
-      if (Array.isArray(importedData.rds)) setRds(importedData.rds);
-      if (Array.isArray(importedData.insurances)) setInsurances(importedData.insurances);
-      if (Array.isArray(importedData.accounts)) setAccounts(importedData.accounts);
+  const importData = async (fileInputData, customPassphrase = null) => {
+    let jsonContent = fileInputData;
+    const initialPass = (typeof customPassphrase === 'string') ? customPassphrase : null;
+
+    // If file input is an object or string, check if it is encrypted
+    if (typeof fileInputData === 'string') {
+      try {
+        const parsedObj = JSON.parse(fileInputData);
+        if (parsedObj && parsedObj.isEncrypted) {
+          const pass = initialPass !== null
+            ? initialPass
+            : window.prompt("Encrypted File Detected: Enter the Decryption Key/Password:");
+
+          if (!pass || typeof pass !== 'string' || !pass.trim()) {
+            showToast('Decryption cancelled', 'info');
+            return;
+          }
+
+          const decryptedStr = await decryptData(fileInputData, pass.trim());
+          jsonContent = JSON.parse(decryptedStr);
+          showToast('File decrypted successfully!', 'success');
+        } else {
+          jsonContent = parsedObj;
+        }
+      } catch (err) {
+        showToast('Import Error: ' + err.message, 'error');
+        return;
+      }
+    } else if (fileInputData && fileInputData.isEncrypted) {
+      const pass = initialPass !== null
+        ? initialPass
+        : window.prompt("Encrypted File Detected: Enter the Decryption Key/Password:");
+
+      if (!pass || typeof pass !== 'string' || !pass.trim()) {
+        showToast('Decryption cancelled', 'info');
+        return;
+      }
+
+      try {
+        const decryptedStr = await decryptData(fileInputData, pass.trim());
+        jsonContent = JSON.parse(decryptedStr);
+        showToast('File decrypted successfully!', 'success');
+      } catch (err) {
+        showToast('Decryption Failed: ' + err.message, 'error');
+        return;
+      }
+    }
+
+    if (jsonContent && typeof jsonContent === 'object') {
+      if (Array.isArray(jsonContent.transactions)) { setTransactions(jsonContent.transactions); saveTransactionsToDB(jsonContent.transactions); }
+      if (Array.isArray(jsonContent.fds)) { setFds(jsonContent.fds); saveFDsToDB(jsonContent.fds); }
+      if (Array.isArray(jsonContent.rds)) { setRds(jsonContent.rds); saveRDsToDB(jsonContent.rds); }
+      if (Array.isArray(jsonContent.insurances)) { setInsurances(jsonContent.insurances); saveInsurancesToDB(jsonContent.insurances); }
+      if (Array.isArray(jsonContent.accounts)) { setAccounts(jsonContent.accounts); saveAccountsToDB(jsonContent.accounts); }
       showToast('Imported wealth portfolio backup cleanly');
     } else {
       showToast('Invalid JSON file format', 'error');

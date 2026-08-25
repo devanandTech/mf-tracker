@@ -110,12 +110,7 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target.result);
-        importData(json);
-      } catch (err) {
-        alert('Invalid JSON file');
-      }
+      importData(event.target.result);
     };
     reader.readAsText(file);
     e.target.value = '';
