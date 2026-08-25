@@ -15,10 +15,14 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  Layers,
   X,
-  ChevronDown,
-  Smartphone
+  Smartphone,
+  Landmark,
+  PiggyBank,
+  ShieldCheck,
+  Settings,
+  LayoutDashboard,
+  Wallet
 } from 'lucide-react';
 
 export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
@@ -33,7 +37,8 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
     syncLiveData,
     exportData,
     importData,
-    setSelectedSchemeCode
+    setSelectedSchemeCode,
+    upcomingAlerts
   } = usePortfolio();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,11 +147,11 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 hidden lg:block">IndexedDB Offline-First • Zero DB</p>
+                <p className="text-[10px] text-slate-400 hidden lg:block">IndexedDB Multi-Entity Wealth Suite</p>
               </div>
             </div>
 
-            {/* Multi-Account Switcher Dropdown */}
+            {/* Master Account Switcher Dropdown */}
             <div className="relative min-w-0 max-w-[110px] xs:max-w-[140px] sm:max-w-[200px]">
               <select
                 value={activeAccountId}
@@ -244,14 +249,14 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
 
               <button
                 onClick={exportData}
-                title="Export JSON"
+                title="Export JSON Backup"
                 className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hidden sm:block active-press"
               >
                 <Download className="w-4 h-4" />
               </button>
 
               <label
-                title="Import JSON"
+                title="Import JSON Backup"
                 className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hidden sm:block active-press cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
@@ -262,55 +267,79 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
 
           </div>
 
-          {/* Desktop Navigation Tabs */}
+          {/* 5 Distinct Desktop Navigation Tabs */}
           <div className="hidden md:flex items-center space-x-1 border-t border-slate-800/80 pt-1 pb-2 overflow-x-auto scrollbar-none">
+            
+            {/* Tab 1: Dashboard */}
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
                 activeTab === 'dashboard'
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <TrendingUp className="w-4 h-4" />
+              <LayoutDashboard className="w-4 h-4" />
               <span>Dashboard</span>
+              {upcomingAlerts.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[9px] font-black bg-amber-500 text-slate-950 rounded-full animate-bounce">
+                  {upcomingAlerts.length}
+                </span>
+              )}
             </button>
 
+            {/* Tab 2: Mutual Funds */}
             <button
-              onClick={() => setActiveTab('amc')}
+              onClick={() => setActiveTab('mf')}
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
-                activeTab === 'amc'
-                  ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20 shadow-sm'
+                activeTab === 'mf'
+                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Building2 className="w-4 h-4" />
-              <span>AMC Analytics</span>
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span>Mutual Funds (MF)</span>
             </button>
 
+            {/* Tab 3: Fixed & Recurring Deposits */}
             <button
-              onClick={() => setActiveTab('dipAnalyzer')}
+              onClick={() => setActiveTab('fdrd')}
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
-                activeTab === 'dipAnalyzer'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm'
+                activeTab === 'fdrd'
+                  ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Performance & Dips</span>
+              <Landmark className="w-4 h-4 text-cyan-400" />
+              <span>FD / RD</span>
             </button>
 
+            {/* Tab 4: Insurance */}
             <button
-              onClick={() => setActiveTab('transactions')}
+              onClick={() => setActiveTab('insurance')}
               className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
-                activeTab === 'transactions'
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm'
+                activeTab === 'insurance'
+                  ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30 shadow-sm font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <ListOrdered className="w-4 h-4" />
-              <span>Transactions</span>
+              <ShieldCheck className="w-4 h-4 text-teal-400" />
+              <span>Insurance</span>
             </button>
+
+            {/* Tab 5: Settings / Masters */}
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
+                activeTab === 'settings'
+                  ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30 shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-purple-400" />
+              <span>Settings & Masters</span>
+            </button>
+
           </div>
 
         </div>
@@ -360,48 +389,66 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
         </div>
       )}
 
-      {/* Mobile Bottom Bar Navigation */}
+      {/* 5-Column Mobile Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 pb-safe">
-        <div className="grid grid-cols-4 h-14 items-center">
+        <div className="grid grid-cols-5 h-14 items-center">
           
+          {/* Tab 1: Dashboard */}
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
+            className={`flex flex-col items-center justify-center py-1 transition-all active-press relative ${
               activeTab === 'dashboard' ? 'text-emerald-400 font-bold' : 'text-slate-400'
             }`}
           >
-            <TrendingUp className="w-4 h-4 mb-0.5" />
+            <LayoutDashboard className="w-4 h-4 mb-0.5" />
             <span className="text-[9px]">Dashboard</span>
+            {upcomingAlerts.length > 0 && (
+              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            )}
           </button>
 
+          {/* Tab 2: Mutual Funds */}
           <button
-            onClick={() => setActiveTab('amc')}
+            onClick={() => setActiveTab('mf')}
             className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'amc' ? 'text-teal-400 font-bold' : 'text-slate-400'
+              activeTab === 'mf' ? 'text-emerald-400 font-bold' : 'text-slate-400'
             }`}
           >
-            <Building2 className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">AMCs</span>
+            <TrendingUp className="w-4 h-4 mb-0.5" />
+            <span className="text-[9px]">MF</span>
           </button>
 
+          {/* Tab 3: FD / RD */}
           <button
-            onClick={() => setActiveTab('dipAnalyzer')}
+            onClick={() => setActiveTab('fdrd')}
             className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'dipAnalyzer' ? 'text-amber-400 font-bold' : 'text-slate-400'
+              activeTab === 'fdrd' ? 'text-cyan-400 font-bold' : 'text-slate-400'
             }`}
           >
-            <Sparkles className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Dips</span>
+            <Landmark className="w-4 h-4 mb-0.5" />
+            <span className="text-[9px]">FD/RD</span>
           </button>
 
+          {/* Tab 4: Insurance */}
           <button
-            onClick={() => setActiveTab('transactions')}
+            onClick={() => setActiveTab('insurance')}
             className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'transactions' ? 'text-cyan-400 font-bold' : 'text-slate-400'
+              activeTab === 'insurance' ? 'text-teal-400 font-bold' : 'text-slate-400'
             }`}
           >
-            <ListOrdered className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Orders</span>
+            <ShieldCheck className="w-4 h-4 mb-0.5" />
+            <span className="text-[9px]">Insurance</span>
+          </button>
+
+          {/* Tab 5: Settings */}
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
+              activeTab === 'settings' ? 'text-purple-400 font-bold' : 'text-slate-400'
+            }`}
+          >
+            <Settings className="w-4 h-4 mb-0.5" />
+            <span className="text-[9px]">Settings</span>
           </button>
 
         </div>

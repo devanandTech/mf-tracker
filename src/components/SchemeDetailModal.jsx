@@ -139,12 +139,61 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                 </div>
               </div>
 
-              {/* Mobile App Style Multi-Chart */}
+              {/* Mobile App Style Multi-Chart with Purchase Dots */}
               <SchemeCharts
                 navDataList={navDataList}
                 schemeName={meta.scheme_name}
                 avgBuyNAV={holding?.avgBuyNAV}
+                transactions={holding?.transactions || []}
               />
+
+              {/* Scheme Specific Transactions Table */}
+              {holding && holding.transactions && holding.transactions.length > 0 && (
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 space-y-2">
+                  <h4 className="text-xs font-bold text-white flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                      Transaction Records ({holding.transactions.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      First: {holding.firstTxDate} • Last: {holding.lastTxDate}
+                    </span>
+                  </h4>
+
+                  <div className="overflow-x-auto max-h-48 overflow-y-auto scrollbar-thin">
+                    <table className="w-full text-xs text-left text-slate-300">
+                      <thead className="bg-slate-900 text-slate-400 sticky top-0 uppercase font-semibold text-[9px]">
+                        <tr>
+                          <th className="py-1.5 px-2">Date</th>
+                          <th className="py-1.5 px-2">Type</th>
+                          <th className="py-1.5 px-2 text-right">NAV (₹)</th>
+                          <th className="py-1.5 px-2 text-right">Amount (₹)</th>
+                          <th className="py-1.5 px-2 text-right">Units</th>
+                          <th className="py-1.5 px-2 text-right">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700/40 font-mono text-[11px]">
+                        {holding.transactions.map((tx, idx) => (
+                          <tr key={tx.id || idx} className="hover:bg-slate-700/30">
+                            <td className="py-1.5 px-2 text-slate-200 font-semibold">{tx.date}</td>
+                            <td className="py-1.5 px-2">
+                              <span className={`px-2 py-0.2 rounded text-[9px] font-extrabold border ${
+                                tx.type === 'SELL' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                {tx.type}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2 text-right font-bold text-white">₹{parseFloat(tx.nav || 0).toFixed(2)}</td>
+                            <td className="py-1.5 px-2 text-right font-bold text-emerald-400">₹{Math.round(tx.amount || 0).toLocaleString('en-IN')}</td>
+                            <td className="py-1.5 px-2 text-right text-cyan-300">{parseFloat(tx.units || 0).toFixed(3)}</td>
+                            <td className="py-1.5 px-2 text-right text-slate-400 text-[10px] italic truncate max-w-[120px]">{tx.notes || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Recent NAV History Table */}
               <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5">

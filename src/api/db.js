@@ -1,8 +1,9 @@
 /**
  * IndexedDB Offline-First Storage Engine for MF Pulse
+ * Separate Entity Table Schema
  */
 
-const DB_NAME = 'MFPulseDB_v2';
+const DB_NAME = 'MFPulseDB_v3';
 const DB_VERSION = 1;
 
 let dbInstance = null;
@@ -21,14 +22,29 @@ export function initDB() {
         db.createObjectStore('schemes', { keyPath: 'schemeCode' });
       }
 
-      // Store for transactions
+      // Store for mutual fund transactions
       if (!db.objectStoreNames.contains('transactions')) {
         db.createObjectStore('transactions', { keyPath: 'id' });
       }
 
-      // Store for accounts/brokers
+      // Store for master accounts/brokers
       if (!db.objectStoreNames.contains('accounts')) {
         db.createObjectStore('accounts', { keyPath: 'id' });
+      }
+
+      // Store for Fixed Deposits (FD)
+      if (!db.objectStoreNames.contains('fds')) {
+        db.createObjectStore('fds', { keyPath: 'id' });
+      }
+
+      // Store for Recurring Deposits (RD)
+      if (!db.objectStoreNames.contains('rds')) {
+        db.createObjectStore('rds', { keyPath: 'id' });
+      }
+
+      // Store for Insurance Policies
+      if (!db.objectStoreNames.contains('insurances')) {
+        db.createObjectStore('insurances', { keyPath: 'id' });
       }
     };
 
@@ -42,6 +58,34 @@ export function initDB() {
       reject(e.target.error);
     };
   });
+}
+
+// Helper generic store actions
+async function saveStoreItems(storeName, items) {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear();
+    items.forEach(item => store.put(item));
+  } catch (e) {
+    console.error(`Failed to save items to ${storeName}:`, e);
+  }
+}
+
+async function getStoreItems(storeName) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch (e) {
+    return [];
+  }
 }
 
 // Scheme NAV Cache
@@ -78,72 +122,50 @@ export async function getSchemeFromDB(schemeCode) {
 }
 
 export async function getAllSchemesFromDB() {
-  try {
-    const db = await initDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction('schemes', 'readonly');
-      const store = tx.objectStore('schemes');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
-    });
-  } catch (e) {
-    return [];
-  }
+  return getStoreItems('schemes');
 }
 
-// Transactions Offline Storage
+// Transactions (MF) Offline Storage
 export async function saveTransactionsToDB(transactions) {
-  try {
-    const db = await initDB();
-    const tx = db.transaction('transactions', 'readwrite');
-    const store = tx.objectStore('transactions');
-    store.clear();
-    transactions.forEach(t => store.put(t));
-  } catch (e) {
-    console.error('Failed to save transactions to DB:', e);
-  }
+  return saveStoreItems('transactions', transactions);
 }
 
 export async function getTransactionsFromDB() {
-  try {
-    const db = await initDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction('transactions', 'readonly');
-      const store = tx.objectStore('transactions');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
-    });
-  } catch (e) {
-    return [];
-  }
+  return getStoreItems('transactions');
 }
 
-// Accounts Offline Storage
+// Master Accounts Offline Storage
 export async function saveAccountsToDB(accounts) {
-  try {
-    const db = await initDB();
-    const tx = db.transaction('accounts', 'readwrite');
-    const store = tx.objectStore('accounts');
-    store.clear();
-    accounts.forEach(a => store.put(a));
-  } catch (e) {
-    console.error('Failed to save accounts to DB:', e);
-  }
+  return saveStoreItems('accounts', accounts);
 }
 
 export async function getAccountsFromDB() {
-  try {
-    const db = await initDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction('accounts', 'readonly');
-      const store = tx.objectStore('accounts');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
-    });
-  } catch (e) {
-    return [];
-  }
+  return getStoreItems('accounts');
+}
+
+// Fixed Deposits (FD) Offline Storage
+export async function saveFDsToDB(fds) {
+  return saveStoreItems('fds', fds);
+}
+
+export async function getFDsFromDB() {
+  return getStoreItems('fds');
+}
+
+// Recurring Deposits (RD) Offline Storage
+export async function saveRDsToDB(rds) {
+  return saveStoreItems('rds', rds);
+}
+
+export async function getRDsFromDB() {
+  return getStoreItems('rds');
+}
+
+// Insurance Policies Offline Storage
+export async function saveInsurancesToDB(insurances) {
+  return saveStoreItems('insurances', insurances);
+}
+
+export async function getInsurancesFromDB() {
+  return getStoreItems('insurances');
 }

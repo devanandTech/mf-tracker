@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { searchSchemes, getSchemeDetails } from '../api/mfApi.js';
 import { findNAVForDate, inputToDDMMYYYY, toInputDateFormat } from '../utils/dateUtils.js';
+import { numberToWordsINR } from '../utils/numberUtils.js';
 import {
   X,
   Search,
@@ -198,6 +199,24 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs text-slate-300">
           
+          {/* Master Portfolio Account Selector */}
+          <div>
+            <label className="block text-slate-400 font-semibold mb-1">
+              Portfolio Master Account <span className="text-rose-400">*</span>
+            </label>
+            <select
+              value={selectedAccountId}
+              onChange={(e) => setSelectedAccountId(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+            >
+              {accounts.filter(a => a.id !== 'acc_all').map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.broker || 'Broker'})
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Scheme Search */}
           <div className="relative" ref={dropdownRef}>
             <label className="block text-slate-400 font-semibold mb-1">
@@ -305,6 +324,11 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
                 onChange={(e) => handleAmountChange(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
               />
+              {amount && parseFloat(amount) > 0 && (
+                <span className="text-[10px] text-emerald-400 font-semibold mt-1 block font-mono">
+                  {numberToWordsINR(amount)}
+                </span>
+              )}
             </div>
 
             <div>

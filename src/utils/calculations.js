@@ -30,6 +30,16 @@ export function calculateHoldings(transactions = [], schemeDetailsMap = {}) {
     let totalSoldUnits = 0;
     let totalSoldAmount = 0;
 
+    // Sort transactions chronologically
+    const sortedTxs = [...group.transactions].sort((a, b) => {
+      const da = parseDDMMYYYY(a.date) || 0;
+      const db = parseDDMMYYYY(b.date) || 0;
+      return da - db;
+    });
+
+    const firstTxDate = sortedTxs.length > 0 ? sortedTxs[0].date : 'N/A';
+    const lastTxDate = sortedTxs.length > 0 ? sortedTxs[sortedTxs.length - 1].date : 'N/A';
+
     group.transactions.forEach(tx => {
       const units = parseFloat(tx.units || 0);
       const amount = parseFloat(tx.amount || 0);
@@ -104,6 +114,8 @@ export function calculateHoldings(transactions = [], schemeDetailsMap = {}) {
       fundHouse,
       schemeCategory,
       isinGrowth,
+      firstTxDate,
+      lastTxDate,
       netUnits,
       netInvested,
       avgBuyNAV,
