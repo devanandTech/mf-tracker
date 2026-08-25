@@ -27,6 +27,29 @@
         }
       });
     </script>
+
+    <!-- PWA Watchdog: Prevent Stuck Blank Screen on Android/iOS Launch -->
+    <script>
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && root.children.length === 0) {
+            console.warn('[PWA Watchdog] Blank screen detected after 3.5s. Clearing SW cache and auto-reloading...');
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                registrations.forEach(function (reg) { reg.unregister(); });
+              });
+            }
+            if ('caches' in window) {
+              caches.keys().then(function (names) {
+                names.forEach(function (name) { caches.delete(name); });
+              });
+            }
+            window.location.reload(true);
+          }
+        }, 3500);
+      });
+    </script>
   </head>
   <body class="bg-[#090d16] text-slate-100 antialiased overscroll-y-none select-none md:select-text">
     <div id="root"></div>
