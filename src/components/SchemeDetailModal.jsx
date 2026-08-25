@@ -47,7 +47,7 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
   const drawdownATH = athNAV > 0 ? ((latestNAV - athNAV) / athNAV) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center max-sm:items-end justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center max-sm:items-end justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto pt-safe pb-safe">
       
       {/* Mobile Bottom Sheet Drawer / Desktop Centered Dialog */}
       <div className="relative w-full max-w-5xl bg-slate-900 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden my-0 sm:my-8 max-h-[92vh] flex flex-col">

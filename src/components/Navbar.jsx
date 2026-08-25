@@ -118,7 +118,7 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 shadow-xl">
+      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 shadow-xl header-safe-top">
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-1.5 sm:gap-3">
             
@@ -318,7 +318,7 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
 
       {/* Mobile Search Overlay Modal */}
       {isMobileSearchOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl p-4 flex flex-col md:hidden">
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl p-4 flex flex-col md:hidden pt-safe">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
