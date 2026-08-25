@@ -169,3 +169,15 @@ export async function saveInsurancesToDB(insurances) {
 export async function getInsurancesFromDB() {
   return getStoreItems('insurances');
 }
+
+// Clear all offline entity object stores
+export async function clearAllStoresInDB() {
+  try {
+    const db = await initDB();
+    const storeNames = ['transactions', 'fds', 'rds', 'insurances'];
+    const tx = db.transaction(storeNames, 'readwrite');
+    storeNames.forEach(name => tx.objectStore(name).clear());
+  } catch (e) {
+    console.error('Failed to clear DB stores:', e);
+  }
+}

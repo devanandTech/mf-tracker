@@ -11,7 +11,8 @@ import {
   saveRDsToDB,
   getRDsFromDB,
   saveInsurancesToDB,
-  getInsurancesFromDB
+  getInsurancesFromDB,
+  clearAllStoresInDB
 } from '../api/db.js';
 import {
   calculateHoldings,
@@ -30,94 +31,10 @@ const INITIAL_ACCOUNTS = [
   { id: 'acc_hdfc', name: 'HDFC Bank & Demat', broker: 'HDFC Bank', isDefault: false }
 ];
 
-const INITIAL_SAMPLE_TRANSACTIONS = [
-  {
-    id: 'tx_sbi_1',
-    accountId: 'acc_groww',
-    schemeCode: 125497,
-    schemeName: 'SBI SMALL CAP FUND - Direct Plan - Growth',
-    type: 'BUY',
-    date: '15-01-2024',
-    nav: 154.20,
-    amount: 50000,
-    units: 324.254,
-    notes: 'Dip Buy - Small Cap correction'
-  },
-  {
-    id: 'tx_ppfc_1',
-    accountId: 'acc_zerodha',
-    schemeCode: 122639,
-    schemeName: 'Parag Parikh Flexi Cap Fund - Direct Plan - Growth',
-    type: 'BUY',
-    date: '10-02-2024',
-    nav: 62.40,
-    amount: 100000,
-    units: 1602.564,
-    notes: 'Core Equity allocation'
-  }
-];
-
-const INITIAL_FDS = [
-  {
-    id: 'fd_1',
-    accountId: 'acc_hdfc',
-    bankName: 'HDFC Bank',
-    title: '3-Year Tax Saver FD',
-    principalAmount: 200000,
-    interestRate: 7.25,
-    tenureMonths: 36,
-    startDate: '2023-09-01',
-    maturityDate: '2026-09-01',
-    maturityAmount: 247800,
-    notes: 'Section 80C Tax Saving FD'
-  },
-  {
-    id: 'fd_2',
-    accountId: 'acc_hdfc',
-    bankName: 'ICICI Bank',
-    title: 'Short Term Wealth FD',
-    principalAmount: 100000,
-    interestRate: 6.9,
-    tenureMonths: 12,
-    startDate: '2025-08-30',
-    maturityDate: '2026-08-30', // Maturing in 5 days!
-    maturityAmount: 107080,
-    notes: 'Maturing soon - 15-day alert test'
-  }
-];
-
-const INITIAL_RDS = [
-  {
-    id: 'rd_1',
-    accountId: 'acc_hdfc',
-    bankName: 'State Bank of India',
-    title: 'SBI Wealth Builder RD',
-    monthlyInstallment: 10000,
-    interestRate: 6.8,
-    tenureMonths: 24,
-    startDate: '2024-03-01',
-    maturityDate: '2026-03-01',
-    totalDeposited: 180000,
-    maturityAmount: 258400,
-    notes: 'Monthly auto-debit on 1st'
-  }
-];
-
-const INITIAL_INSURANCES = [
-  {
-    id: 'ins_1',
-    accountId: 'acc_groww',
-    policyName: 'HDFC Ergo Optima Secure',
-    provider: 'HDFC Ergo',
-    policyType: 'Health',
-    policyNumber: 'HE-902184-B',
-    sumAssured: 1000000,
-    premiumAmount: 14500,
-    premiumFrequency: 'Yearly',
-    nextDueDate: '2026-09-05', // Due in 11 days!
-    notes: 'Family Floater 10L Cover'
-  }
-];
+const INITIAL_SAMPLE_TRANSACTIONS = [];
+const INITIAL_FDS = [];
+const INITIAL_RDS = [];
+const INITIAL_INSURANCES = [];
 
 export function PortfolioProvider({ children }) {
   const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS);
@@ -159,34 +76,30 @@ export function PortfolioProvider({ children }) {
       await initDB();
       
       const dbTxs = await getTransactionsFromDB();
-      if (dbTxs && dbTxs.length > 0) setTransactions(dbTxs);
-      else { setTransactions(INITIAL_SAMPLE_TRANSACTIONS); saveTransactionsToDB(INITIAL_SAMPLE_TRANSACTIONS); }
+      setTransactions(dbTxs || []);
 
       const dbAccs = await getAccountsFromDB();
       if (dbAccs && dbAccs.length > 0) setAccounts(dbAccs);
       else { saveAccountsToDB(INITIAL_ACCOUNTS); }
 
       const dbFds = await getFDsFromDB();
-      if (dbFds && dbFds.length > 0) setFds(dbFds);
-      else { setFds(INITIAL_FDS); saveFDsToDB(INITIAL_FDS); }
+      setFds(dbFds || []);
 
       const dbRds = await getRDsFromDB();
-      if (dbRds && dbRds.length > 0) setRds(dbRds);
-      else { setRds(INITIAL_RDS); saveRDsToDB(INITIAL_RDS); }
+      setRds(dbRds || []);
 
       const dbIns = await getInsurancesFromDB();
-      if (dbIns && dbIns.length > 0) setInsurances(dbIns);
-      else { setInsurances(INITIAL_INSURANCES); saveInsurancesToDB(INITIAL_INSURANCES); }
+      setInsurances(dbIns || []);
     }
     loadFromDB();
   }, []);
 
   // Save changes to IndexedDB
-  useEffect(() => { if (transactions.length > 0) saveTransactionsToDB(transactions); }, [transactions]);
+  useEffect(() => { saveTransactionsToDB(transactions); }, [transactions]);
   useEffect(() => { if (accounts.length > 0) saveAccountsToDB(accounts); }, [accounts]);
-  useEffect(() => { if (fds.length > 0) saveFDsToDB(fds); }, [fds]);
-  useEffect(() => { if (rds.length > 0) saveRDsToDB(rds); }, [rds]);
-  useEffect(() => { if (insurances.length > 0) saveInsurancesToDB(insurances); }, [insurances]);
+  useEffect(() => { saveFDsToDB(fds); }, [fds]);
+  useEffect(() => { saveRDsToDB(rds); }, [rds]);
+  useEffect(() => { saveInsurancesToDB(insurances); }, [insurances]);
 
   // Refresh scheme details from IndexedDB or Network
   const refreshSchemeDetails = useCallback(async (forceSync = false) => {
@@ -478,7 +391,8 @@ export function PortfolioProvider({ children }) {
     showToast('Account removed', 'info');
   };
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
+    await clearAllStoresInDB();
     setTransactions([]);
     setFds([]);
     setRds([]);
