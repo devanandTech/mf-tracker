@@ -24,11 +24,8 @@ import { encryptData, decryptData } from '../utils/cryptoUtils.js';
 
 const PortfolioContext = createContext(null);
 
-const INITIAL_ACCOUNTS = [
-  { id: 'acc_all', name: 'All Accounts (Combined)', broker: 'Multi-Broker', isDefault: false },
-  { id: 'acc_groww', name: 'Groww Portfolio', broker: 'Groww', isDefault: true },
-  { id: 'acc_zerodha', name: 'Zerodha Coin', broker: 'Zerodha', isDefault: false },
-  { id: 'acc_hdfc', name: 'HDFC Bank & Demat', broker: 'HDFC Bank', isDefault: false }
+const DEFAULT_ACCOUNTS = [
+  { id: 'acc_all', name: 'All Accounts (Combined)', broker: 'Multi-Broker', isDefault: true }
 ];
 
 const INITIAL_SAMPLE_TRANSACTIONS = [];
@@ -37,7 +34,8 @@ const INITIAL_RDS = [];
 const INITIAL_INSURANCES = [];
 
 export function PortfolioProvider({ children }) {
-  const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [accounts, setAccounts] = useState(DEFAULT_ACCOUNTS);
   const [activeAccountId, setActiveAccountId] = useState('acc_all');
   const [entityFilter, setEntityFilter] = useState('ALL'); // 'ALL' | 'MF' | 'FDRD' | 'INSURANCE'
   
@@ -79,8 +77,12 @@ export function PortfolioProvider({ children }) {
       setTransactions(dbTxs || []);
 
       const dbAccs = await getAccountsFromDB();
-      if (dbAccs && dbAccs.length > 0) setAccounts(dbAccs);
-      else { saveAccountsToDB(INITIAL_ACCOUNTS); }
+      if (dbAccs && dbAccs.length > 0) {
+        setAccounts(dbAccs);
+      } else {
+        setAccounts(DEFAULT_ACCOUNTS);
+        await saveAccountsToDB(DEFAULT_ACCOUNTS);
+      }
 
       const dbFds = await getFDsFromDB();
       setFds(dbFds || []);
@@ -90,16 +92,18 @@ export function PortfolioProvider({ children }) {
 
       const dbIns = await getInsurancesFromDB();
       setInsurances(dbIns || []);
+
+      setIsLoaded(true);
     }
     loadFromDB();
   }, []);
 
-  // Save changes to IndexedDB
-  useEffect(() => { saveTransactionsToDB(transactions); }, [transactions]);
-  useEffect(() => { if (accounts.length > 0) saveAccountsToDB(accounts); }, [accounts]);
-  useEffect(() => { saveFDsToDB(fds); }, [fds]);
-  useEffect(() => { saveRDsToDB(rds); }, [rds]);
-  useEffect(() => { saveInsurancesToDB(insurances); }, [insurances]);
+  // Save changes to IndexedDB ONLY after DB loading completes (prevents race condition)
+  useEffect(() => { if (isLoaded) saveTransactionsToDB(transactions); }, [transactions, isLoaded]);
+  useEffect(() => { if (isLoaded && accounts.length > 0) saveAccountsToDB(accounts); }, [accounts, isLoaded]);
+  useEffect(() => { if (isLoaded) saveFDsToDB(fds); }, [fds, isLoaded]);
+  useEffect(() => { if (isLoaded) saveRDsToDB(rds); }, [rds, isLoaded]);
+  useEffect(() => { if (isLoaded) saveInsurancesToDB(insurances); }, [insurances, isLoaded]);
 
   // Refresh scheme details from IndexedDB or Network
   const refreshSchemeDetails = useCallback(async (forceSync = false) => {
@@ -276,9 +280,10 @@ export function PortfolioProvider({ children }) {
 
   // Entity CRUD actions
   const addTransaction = (txData) => {
+    const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
     const newTx = {
       id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      accountId: txData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : 'acc_groww'),
+      accountId: txData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId),
       ...txData,
       schemeCode: parseInt(txData.schemeCode, 10),
       amount: parseFloat(txData.amount),
@@ -301,9 +306,10 @@ export function PortfolioProvider({ children }) {
 
   // FD CRUD
   const addFD = (fdData) => {
+    const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
     const newFD = {
       id: `fd_${Date.now()}`,
-      accountId: fdData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : 'acc_hdfc'),
+      accountId: fdData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId),
       ...fdData
     };
     setFds(prev => [newFD, ...prev]);
@@ -322,9 +328,10 @@ export function PortfolioProvider({ children }) {
 
   // RD CRUD
   const addRD = (rdData) => {
+    const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
     const newRD = {
       id: `rd_${Date.now()}`,
-      accountId: rdData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : 'acc_hdfc'),
+      accountId: rdData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId),
       ...rdData
     };
     setRds(prev => [newRD, ...prev]);
@@ -343,9 +350,10 @@ export function PortfolioProvider({ children }) {
 
   // Insurance CRUD
   const addInsurance = (insData) => {
+    const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
     const newIns = {
       id: `ins_${Date.now()}`,
-      accountId: insData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : 'acc_groww'),
+      accountId: insData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId),
       ...insData
     };
     setInsurances(prev => [newIns, ...prev]);
@@ -382,8 +390,8 @@ export function PortfolioProvider({ children }) {
   };
 
   const deleteAccount = (id) => {
-    if (id === 'acc_all' || id === 'acc_groww') {
-      showToast('Cannot delete default account', 'error');
+    if (id === 'acc_all') {
+      showToast('Cannot delete default system account', 'error');
       return;
     }
     setAccounts(prev => prev.filter(a => a.id !== id));

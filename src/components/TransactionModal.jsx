@@ -17,7 +17,8 @@ import {
 
 export default function TransactionModal({ isOpen, onClose, initialSchemeName = '', initialSchemeCode = null, editTxData = null }) {
   const { addTransaction, editTransaction, accounts, activeAccountId } = usePortfolio();
-  const [selectedAccountId, setSelectedAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : 'acc_groww');
+  const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
+  const [selectedAccountId, setSelectedAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId);
 
   const [schemeQuery, setSchemeQuery] = useState(initialSchemeName);
   const [selectedScheme, setSelectedScheme] = useState(initialSchemeCode ? { schemeCode: initialSchemeCode, schemeName: initialSchemeName } : null);
@@ -154,7 +155,7 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
     const formattedDate = inputToDDMMYYYY(dateStr);
 
     const payload = {
-      accountId: selectedAccountId || activeAccountId || 'acc_groww',
+      accountId: selectedAccountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId),
       schemeCode: selectedScheme.schemeCode,
       schemeName: selectedScheme.schemeName,
       type: txType,
