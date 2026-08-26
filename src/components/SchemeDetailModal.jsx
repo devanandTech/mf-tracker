@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { getSchemeDetails } from '../api/mfApi.js';
 import SchemeCharts from './SchemeCharts.jsx';
@@ -6,15 +6,29 @@ import {
   X,
   Building2,
   Calendar,
-  Loader2
+  Loader2,
+  Star,
+  TrendingUp,
+  LineChart
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip
+} from 'recharts';
 
 export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) {
-  const { schemeDetailsMap, holdings } = usePortfolio();
+  const { schemeDetailsMap, holdings, isWatchlisted, toggleWatchlist } = usePortfolio();
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chartMode, setChartMode] = useState('nav'); // 'nav' | 'growth'
 
   const holding = holdings.find(h => h.schemeCode === schemeCode);
+  const watchlisted = isWatchlisted(schemeCode);
 
   useEffect(() => {
     if (!schemeCode) return;
@@ -31,6 +45,73 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
       setLoading(false);
     });
   }, [schemeCode, schemeDetailsMap]);
+
+  // Compute scheme-specific investment growth curve
+  const investmentGrowthData = useMemo(() => {
+    if (!holding || !holding.transactions || holding.transactions.length === 0 || !details || !details.data) {
+      return [];
+    }
+
+    const txs = [...holding.transactions].sort((a, b) => {
+      const partsA = (a.date || '').split('-').map(Number);
+      const partsB = (b.date || '').split('-').map(Number);
+      return new Date(partsA[2], partsA[1] - 1, partsA[0]) - new Date(partsB[2], partsB[1] - 1, partsB[0]);
+    });
+
+    const firstTx = txs[0];
+    const [fd, fm, fy] = (firstTx.date || '').split('-').map(Number);
+    const startDate = new Date(fy, fm - 1, fd);
+    const endDate = new Date();
+
+    const points = [];
+    let curr = new Date(startDate);
+    const stepDays = 5;
+
+    while (curr <= endDate) {
+      const dStr = curr.toISOString().split('T')[0];
+      const [y, m, d] = dStr.split('-').map(Number);
+      const currTime = new Date(y, m - 1, d).getTime();
+
+      let cumUnits = 0;
+      let cumCost = 0;
+
+      txs.forEach(t => {
+        const [td, tm, ty] = (t.date || '').split('-').map(Number);
+        const txTime = new Date(ty, tm - 1, td).getTime();
+        if (txTime <= currTime) {
+          if (t.type === 'BUY' || t.type === 'SIP') {
+            cumUnits += parseFloat(t.units || 0);
+            cumCost += parseFloat(t.amount || 0);
+          } else if (t.type === 'SELL') {
+            cumUnits -= parseFloat(t.units || 0);
+            cumCost -= parseFloat(t.amount || 0);
+          }
+        }
+      });
+
+      if (cumUnits > 0) {
+        const navEntry = details.data.find(n => {
+          const [nd, nm, ny] = (n.date || '').split('-').map(Number);
+          const navDateStr = `${ny}-${String(nm).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+          return navDateStr <= dStr;
+        }) || details.data[0];
+
+        const navVal = navEntry ? parseFloat(navEntry.nav) : 0;
+        const currentVal = cumUnits * navVal;
+
+        points.push({
+          date: curr.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }),
+          invested: Math.round(Math.max(0, cumCost)),
+          valuation: Math.round(Math.max(0, currentVal)),
+          profit: Math.round(currentVal - cumCost)
+        });
+      }
+
+      curr.setDate(curr.getDate() + stepDays);
+    }
+
+    return points;
+  }, [holding, details]);
 
   if (!schemeCode) return null;
 
@@ -74,12 +155,28 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
             </p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-colors active-press"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Watchlist Toggle Button */}
+            <button
+              onClick={() => toggleWatchlist({ schemeCode, schemeName: meta.scheme_name || `Scheme #${schemeCode}`, fundHouse: meta.fund_house })}
+              title={watchlisted ? 'Remove from Watchlist' : 'Add to Watchlist'}
+              className={`p-2 rounded-2xl border transition-all active-press flex items-center gap-1 text-xs font-bold ${
+                watchlisted
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+            >
+              <Star className={`w-4 h-4 ${watchlisted ? 'text-amber-400 fill-amber-400' : ''}`} />
+              <span className="hidden sm:inline">{watchlisted ? 'Watchlisted' : 'Watchlist'}</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-colors active-press"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -139,13 +236,108 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                 </div>
               </div>
 
-              {/* Mobile App Style Multi-Chart with Purchase Dots */}
-              <SchemeCharts
-                navDataList={navDataList}
-                schemeName={meta.scheme_name}
-                avgBuyNAV={holding?.avgBuyNAV}
-                transactions={holding?.transactions || []}
-              />
+              {/* Chart Mode Switcher Tab (NAV History vs My Investment Growth) */}
+              {holding && investmentGrowthData.length > 0 && (
+                <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                  <button
+                    onClick={() => setChartMode('nav')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      chartMode === 'nav'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <LineChart className="w-4 h-4" />
+                    <span>Scheme NAV History</span>
+                  </button>
+
+                  <button
+                    onClick={() => setChartMode('growth')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      chartMode === 'growth'
+                        ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span>My Investment Valuation Growth</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Display Chosen Chart */}
+              {chartMode === 'growth' && holding && investmentGrowthData.length > 0 ? (
+                <div className="mobile-card-glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-cyan-400" />
+                      Holding Valuation Curve ({holding.schemeName})
+                    </h3>
+                    <span className="text-xs font-mono font-bold text-cyan-300">
+                      Total Units: {holding.netUnits.toFixed(3)}
+                    </span>
+                  </div>
+
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={investmentGrowthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="schemeHoldGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 9 }} />
+                        <YAxis stroke="#64748b" tick={{ fontSize: 9 }} tickFormatter={(v) => `₹${v}`} />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload;
+                              return (
+                                <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl text-xs font-mono space-y-1">
+                                  <p className="font-bold text-slate-200">{label}</p>
+                                  <div className="text-cyan-400 font-bold">Valuation: ₹{d.valuation.toLocaleString('en-IN')}</div>
+                                  <div className="text-slate-400">Cost: ₹{d.invested.toLocaleString('en-IN')}</div>
+                                  <div className={d.profit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                    P&L: {d.profit >= 0 ? '+' : ''}₹{d.profit.toLocaleString('en-IN')}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="valuation"
+                          name="Current Value"
+                          stroke="#06b6d4"
+                          strokeWidth={2.5}
+                          fill="url(#schemeHoldGrad)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="invested"
+                          name="Invested Amount"
+                          stroke="#64748b"
+                          strokeWidth={1.5}
+                          strokeDasharray="4 4"
+                          fill="none"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                /* Mobile App Style Multi-Chart with Purchase Dots */
+                <SchemeCharts
+                  navDataList={navDataList}
+                  schemeName={meta.scheme_name}
+                  avgBuyNAV={holding?.avgBuyNAV}
+                  transactions={holding?.transactions || []}
+                />
+              )}
 
               {/* Scheme Specific Transactions Table */}
               {holding && holding.transactions && holding.transactions.length > 0 && (

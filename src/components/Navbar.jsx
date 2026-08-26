@@ -255,7 +255,7 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
                 className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hidden sm:block active-press cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
-                <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                <input type="file" accept=".json,application/json,text/plain,text/json" onChange={handleFileUpload} className="hidden" />
               </label>
 
             </div>
@@ -384,66 +384,76 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
         </div>
       )}
 
-      {/* 5-Column Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 pb-safe">
-        <div className="grid grid-cols-5 h-14 items-center">
+      {/* 5-Column Ultra-Clean Mobile Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-slate-950/90 backdrop-blur-2xl border-t border-slate-800/80 pb-safe shadow-2xl">
+        <div className="grid grid-cols-5 h-16 items-center px-1">
           
           {/* Tab 1: Dashboard */}
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press relative ${
-              activeTab === 'dashboard' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center py-1.5 transition-all active-press relative ${
+              activeTab === 'dashboard' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <LayoutDashboard className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Dashboard</span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/15 border border-emerald-500/30' : ''}`}>
+              <LayoutDashboard className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-bold">Home</span>
             {upcomingAlerts.length > 0 && (
-              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="absolute top-1 right-3 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             )}
           </button>
 
           {/* Tab 2: Mutual Funds */}
           <button
             onClick={() => setActiveTab('mf')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'mf' ? 'text-emerald-400 font-bold' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center py-1.5 transition-all active-press ${
+              activeTab === 'mf' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <TrendingUp className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">MF</span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'mf' ? 'bg-emerald-500/15 border border-emerald-500/30' : ''}`}>
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-bold">MF</span>
           </button>
 
           {/* Tab 3: FD / RD */}
           <button
             onClick={() => setActiveTab('fdrd')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'fdrd' ? 'text-cyan-400 font-bold' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center py-1.5 transition-all active-press ${
+              activeTab === 'fdrd' ? 'text-cyan-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Landmark className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">FD/RD</span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'fdrd' ? 'bg-cyan-500/15 border border-cyan-500/30' : ''}`}>
+              <Landmark className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-bold">FD/RD</span>
           </button>
 
           {/* Tab 4: Insurance */}
           <button
             onClick={() => setActiveTab('insurance')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'insurance' ? 'text-teal-400 font-bold' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center py-1.5 transition-all active-press ${
+              activeTab === 'insurance' ? 'text-teal-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Insurance</span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'insurance' ? 'bg-teal-500/15 border border-teal-500/30' : ''}`}>
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-bold">Insurance</span>
           </button>
 
           {/* Tab 5: Settings */}
           <button
             onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center justify-center py-1 transition-all active-press ${
-              activeTab === 'settings' ? 'text-purple-400 font-bold' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center py-1.5 transition-all active-press ${
+              activeTab === 'settings' ? 'text-purple-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Settings className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Settings</span>
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'settings' ? 'bg-purple-500/15 border border-purple-500/30' : ''}`}>
+              <Settings className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] mt-0.5 font-bold">Settings</span>
           </button>
 
         </div>

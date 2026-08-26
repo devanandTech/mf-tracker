@@ -36,9 +36,14 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
 
   const dropdownRef = useRef(null);
 
-  // Load existing tx data if in Edit Mode
+  // Sync selectedAccountId, scheme, form fields whenever modal opens or mode changes
   useEffect(() => {
+    if (!isOpen) return;
+
+    const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
+
     if (editTxData) {
+      setSelectedAccountId(editTxData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId));
       setSelectedScheme({ schemeCode: editTxData.schemeCode, schemeName: editTxData.schemeName });
       setSchemeQuery(editTxData.schemeName);
       setTxType(editTxData.type || 'BUY');
@@ -47,11 +52,23 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       setAmount(String(editTxData.amount || ''));
       setUnits(String(editTxData.units || ''));
       setNotes(editTxData.notes || '');
-    } else if (initialSchemeCode && initialSchemeName) {
-      setSelectedScheme({ schemeCode: initialSchemeCode, schemeName: initialSchemeName });
-      setSchemeQuery(initialSchemeName);
+    } else {
+      setSelectedAccountId(activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId);
+      if (initialSchemeCode && initialSchemeName) {
+        setSelectedScheme({ schemeCode: initialSchemeCode, schemeName: initialSchemeName });
+        setSchemeQuery(initialSchemeName);
+      } else {
+        setSelectedScheme(null);
+        setSchemeQuery('');
+      }
+      setTxType('BUY');
+      setDateStr(toInputDateFormat(new Date()));
+      setNav('');
+      setAmount('');
+      setUnits('');
+      setNotes('');
     }
-  }, [editTxData, initialSchemeCode, initialSchemeName]);
+  }, [isOpen, editTxData, initialSchemeCode, initialSchemeName, activeAccountId, accounts]);
 
   // Search autocomplete
   useEffect(() => {

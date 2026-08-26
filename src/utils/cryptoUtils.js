@@ -15,7 +15,9 @@ function uint8ToBase64(bytes) {
 
 // Helper: Convert Base64 to Uint8Array
 function base64ToUint8(base64) {
-  const binary = window.atob(base64);
+  const cleanBase64 = String(base64 || '').replace(/\s+/g, '');
+  const atobFn = typeof window !== 'undefined' && window.atob ? window.atob.bind(window) : atob;
+  const binary = atobFn(cleanBase64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -255,7 +257,7 @@ export async function decryptData(encryptedJsonStr, passphrase) {
       const encoder = new TextEncoder();
       const salt = base64ToUint8(parsed.salt);
       const iv = base64ToUint8(parsed.iv);
-      const ciphertextBuffer = base64ToUint8(parsed.ciphertext).buffer;
+      const ciphertextBytes = base64ToUint8(parsed.ciphertext);
 
       const passphraseKey = await window.crypto.subtle.importKey(
         'raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']
@@ -270,16 +272,20 @@ export async function decryptData(encryptedJsonStr, passphrase) {
       );
 
       const decryptedBuffer = await window.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv }, key, ciphertextBuffer
+        { name: 'AES-GCM', iv }, key, ciphertextBytes
       );
 
       const decoder = new TextDecoder();
       return decoder.decode(decryptedBuffer);
     } catch (err) {
-      throw new Error('Incorrect password or corrupted file');
+      console.warn('WebCrypto decryption failed, falling back to UniversalJS engine:', err);
     }
   }
 
   // Final Fallback to JS engine
-  return decryptJS(parsed, passphrase);
+  try {
+    return decryptJS(parsed, passphrase);
+  } catch (err) {
+    throw new Error('Incorrect password or corrupted file');
+  }
 }
