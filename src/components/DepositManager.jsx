@@ -23,8 +23,10 @@ export default function DepositManager() {
   const [isRDModalOpen, setIsRDModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  const firstAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
+
   // Form states for FD
-  const [fdAccountId, setFdAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : 'acc_hdfc');
+  const [fdAccountId, setFdAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
   const [fdBankName, setFdBankName] = useState('');
   const [fdTitle, setFdTitle] = useState('');
   const [fdPrincipal, setFdPrincipal] = useState('');
@@ -36,7 +38,7 @@ export default function DepositManager() {
   const [fdNotes, setFdNotes] = useState('');
 
   // Form states for RD
-  const [rdAccountId, setRdAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : 'acc_hdfc');
+  const [rdAccountId, setRdAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
   const [rdBankName, setRdBankName] = useState('');
   const [rdTitle, setRdTitle] = useState('');
   const [rdInstallment, setRdInstallment] = useState('');

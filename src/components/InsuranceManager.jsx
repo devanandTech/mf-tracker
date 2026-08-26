@@ -19,8 +19,10 @@ export default function InsuranceManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
 
+  const firstAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
+
   // Form state
-  const [accountId, setAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : 'acc_groww');
+  const [accountId, setAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
   const [policyName, setPolicyName] = useState('');
   const [provider, setProvider] = useState('');
   const [policyType, setPolicyType] = useState('Health');
