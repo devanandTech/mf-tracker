@@ -12,6 +12,8 @@ import {
   getRDsFromDB,
   saveInsurancesToDB,
   getInsurancesFromDB,
+  saveWatchlistToDB,
+  getWatchlistFromDB,
   clearAllStoresInDB
 } from '../api/db.js';
 import {
@@ -43,6 +45,7 @@ export function PortfolioProvider({ children }) {
   const [fds, setFds] = useState([]);
   const [rds, setRds] = useState([]);
   const [insurances, setInsurances] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
 
   const [schemeDetailsMap, setSchemeDetailsMap] = useState({});
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -93,6 +96,9 @@ export function PortfolioProvider({ children }) {
       const dbIns = await getInsurancesFromDB();
       setInsurances(dbIns || []);
 
+      const dbWl = await getWatchlistFromDB();
+      setWatchlist(dbWl || []);
+
       setIsLoaded(true);
     }
     loadFromDB();
@@ -104,10 +110,15 @@ export function PortfolioProvider({ children }) {
   useEffect(() => { if (isLoaded) saveFDsToDB(fds); }, [fds, isLoaded]);
   useEffect(() => { if (isLoaded) saveRDsToDB(rds); }, [rds, isLoaded]);
   useEffect(() => { if (isLoaded) saveInsurancesToDB(insurances); }, [insurances, isLoaded]);
+  useEffect(() => { if (isLoaded) saveWatchlistToDB(watchlist); }, [watchlist, isLoaded]);
 
-  // Refresh scheme details from IndexedDB or Network
+  // Refresh scheme details from IndexedDB or Network (includes Watchlist schemes!)
   const refreshSchemeDetails = useCallback(async (forceSync = false) => {
-    const uniqueCodes = [...new Set(transactions.map(t => t.schemeCode))];
+    const uniqueCodes = [...new Set([
+      ...transactions.map(t => parseInt(t.schemeCode, 10)),
+      ...watchlist.map(w => parseInt(w.schemeCode, 10))
+    ])].filter(Boolean);
+
     if (uniqueCodes.length === 0) {
       setSchemeDetailsMap({});
       return;
@@ -141,7 +152,7 @@ export function PortfolioProvider({ children }) {
 
     setLoadingDetails(false);
     if (forceSync) setIsSyncing(false);
-  }, [transactions]);
+  }, [transactions, watchlist]);
 
   useEffect(() => {
     refreshSchemeDetails(false);
@@ -399,12 +410,53 @@ export function PortfolioProvider({ children }) {
     showToast('Account removed', 'info');
   };
 
+  // Watchlist CRUD Actions
+  const addToWatchlist = (schemeObj) => {
+    if (!schemeObj || !schemeObj.schemeCode) return;
+    const code = parseInt(schemeObj.schemeCode, 10);
+    if (watchlist.some(w => parseInt(w.schemeCode, 10) === code)) {
+      showToast(`${schemeObj.schemeName || 'Scheme'} is already in Watchlist`, 'info');
+      return;
+    }
+    const item = {
+      schemeCode: code,
+      schemeName: schemeObj.schemeName || `Scheme ${code}`,
+      fundHouse: schemeObj.fundHouse || schemeObj.meta?.fund_house || 'Mutual Fund',
+      addedAt: new Date().toISOString()
+    };
+    setWatchlist(prev => [item, ...prev]);
+    showToast(`Added "${item.schemeName}" to Watchlist!`, 'success');
+  };
+
+  const removeFromWatchlist = (schemeCode) => {
+    const code = parseInt(schemeCode, 10);
+    setWatchlist(prev => prev.filter(w => parseInt(w.schemeCode, 10) !== code));
+    showToast('Removed from Watchlist', 'info');
+  };
+
+  const toggleWatchlist = (schemeObj) => {
+    if (!schemeObj || !schemeObj.schemeCode) return;
+    const code = parseInt(schemeObj.schemeCode, 10);
+    if (watchlist.some(w => parseInt(w.schemeCode, 10) === code)) {
+      removeFromWatchlist(code);
+    } else {
+      addToWatchlist(schemeObj);
+    }
+  };
+
+  const isWatchlisted = (schemeCode) => {
+    if (!schemeCode) return false;
+    const code = parseInt(schemeCode, 10);
+    return watchlist.some(w => parseInt(w.schemeCode, 10) === code);
+  };
+
   const clearAllData = async () => {
     await clearAllStoresInDB();
     setTransactions([]);
     setFds([]);
     setRds([]);
     setInsurances([]);
+    setWatchlist([]);
     setSchemeDetailsMap({});
     showToast('All wealth records cleared', 'info');
   };
@@ -422,7 +474,7 @@ export function PortfolioProvider({ children }) {
   };
 
   const exportData = async (customPassphrase = null) => {
-    const payload = { accounts, transactions, fds, rds, insurances };
+    const payload = { accounts, transactions, fds, rds, insurances, watchlist };
     const rawJson = JSON.stringify(payload, null, 2);
 
     let finalContent = rawJson;
@@ -532,6 +584,7 @@ export function PortfolioProvider({ children }) {
     let importedRDCount = 0;
     let importedInsCount = 0;
     let importedAccCount = 0;
+    let importedWlCount = 0;
 
     // Case 1: Direct Array of Transactions (Legacy Export Format)
     if (Array.isArray(payload)) {
@@ -569,6 +622,12 @@ export function PortfolioProvider({ children }) {
         setInsurances(payload.insurances);
         saveInsurancesToDB(payload.insurances);
         importedInsCount = payload.insurances.length;
+      }
+
+      if (Array.isArray(payload.watchlist)) {
+        setWatchlist(payload.watchlist);
+        saveWatchlistToDB(payload.watchlist);
+        importedWlCount = payload.watchlist.length;
       }
 
       if (Array.isArray(payload.accounts) && payload.accounts.length > 0) {
@@ -610,9 +669,9 @@ export function PortfolioProvider({ children }) {
       });
     }
 
-    const totalImported = importedTxCount + importedFDCount + importedRDCount + importedInsCount;
+    const totalImported = importedTxCount + importedFDCount + importedRDCount + importedInsCount + importedWlCount;
     if (totalImported > 0 || importedAccCount > 0) {
-      showToast(`Successfully imported ${totalImported} wealth records (${importedTxCount} Txs, ${importedFDCount} FDs, ${importedRDCount} RDs, ${importedInsCount} Insurances)`, 'success');
+      showToast(`Successfully imported ${totalImported} wealth records (${importedTxCount} Txs, ${importedFDCount} FDs, ${importedRDCount} RDs, ${importedInsCount} Insurances, ${importedWlCount} Watchlists)`, 'success');
     } else {
       showToast('No valid transactions or wealth records found in backup file', 'error');
     }
@@ -634,6 +693,11 @@ export function PortfolioProvider({ children }) {
         fds: filteredFds,
         rds: filteredRds,
         insurances: filteredInsurances,
+        watchlist,
+        addToWatchlist,
+        removeFromWatchlist,
+        toggleWatchlist,
+        isWatchlisted,
         upcomingAlerts,
         globalWealthSummary,
         addTransaction,

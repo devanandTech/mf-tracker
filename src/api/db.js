@@ -3,8 +3,8 @@
  * Separate Entity Table Schema
  */
 
-const DB_NAME = 'MFPulseDB_v3';
-const DB_VERSION = 1;
+const DB_NAME = 'MFPulseDB_v4';
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -46,6 +46,11 @@ export function initDB() {
       if (!db.objectStoreNames.contains('insurances')) {
         db.createObjectStore('insurances', { keyPath: 'id' });
       }
+
+      // Store for Watchlist Schemes
+      if (!db.objectStoreNames.contains('watchlist')) {
+        db.createObjectStore('watchlist', { keyPath: 'schemeCode' });
+      }
     };
 
     request.onsuccess = (e) => {
@@ -64,6 +69,10 @@ export function initDB() {
 async function saveStoreItems(storeName, items) {
   try {
     const db = await initDB();
+    if (!db.objectStoreNames.contains(storeName)) {
+      console.warn(`Object store "${storeName}" not found in DB`);
+      return;
+    }
     const tx = db.transaction(storeName, 'readwrite');
     const store = tx.objectStore(storeName);
     store.clear();
@@ -76,12 +85,19 @@ async function saveStoreItems(storeName, items) {
 async function getStoreItems(storeName) {
   try {
     const db = await initDB();
+    if (!db.objectStoreNames.contains(storeName)) {
+      return [];
+    }
     return new Promise((resolve) => {
-      const tx = db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
+      try {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => resolve([]);
+      } catch (err) {
+        resolve([]);
+      }
     });
   } catch (e) {
     return [];
@@ -170,13 +186,23 @@ export async function getInsurancesFromDB() {
   return getStoreItems('insurances');
 }
 
+// Watchlist Schemes Offline Storage
+export async function saveWatchlistToDB(watchlist) {
+  return saveStoreItems('watchlist', watchlist);
+}
+
+export async function getWatchlistFromDB() {
+  return getStoreItems('watchlist');
+}
+
 // Clear all offline entity object stores
 export async function clearAllStoresInDB() {
   try {
     const db = await initDB();
-    const storeNames = ['transactions', 'fds', 'rds', 'insurances'];
-    const tx = db.transaction(storeNames, 'readwrite');
-    storeNames.forEach(name => tx.objectStore(name).clear());
+    const existingStores = ['transactions', 'fds', 'rds', 'insurances', 'watchlist'].filter(name => db.objectStoreNames.contains(name));
+    if (existingStores.length === 0) return;
+    const tx = db.transaction(existingStores, 'readwrite');
+    existingStores.forEach(name => tx.objectStore(name).clear());
   } catch (e) {
     console.error('Failed to clear DB stores:', e);
   }

@@ -4,7 +4,8 @@ import Navbar from './components/Navbar.jsx';
 import DashboardOverview from './components/DashboardOverview.jsx';
 import PortfolioSummary from './components/PortfolioSummary.jsx';
 import PortfolioChart from './components/PortfolioChart.jsx';
-import DipAnalyzer from './components/DipAnalyzer.jsx';
+import BrokerPortfolioChart from './components/BrokerPortfolioChart.jsx';
+import WatchlistManager from './components/WatchlistManager.jsx';
 import AMCAnalytics from './components/AMCAnalytics.jsx';
 import DepositManager from './components/DepositManager.jsx';
 import InsuranceManager from './components/InsuranceManager.jsx';
@@ -23,6 +24,7 @@ import {
   X,
   Building2,
   Sparkles,
+  Star,
   ListOrdered
 } from 'lucide-react';
 
@@ -38,7 +40,7 @@ function DashboardContent() {
     toastMessage
   } = usePortfolio();
 
-  const [mfSubTab, setMfSubTab] = useState('holdings'); // 'holdings' | 'amc' | 'dip' | 'orders'
+  const [mfSubTab, setMfSubTab] = useState('holdings'); // 'holdings' | 'amc' | 'watchlist' | 'orders'
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
   const [addTxInitialScheme, setAddTxInitialScheme] = useState({ name: '', code: null });
@@ -97,7 +99,7 @@ function DashboardContent() {
               {[
                 { id: 'holdings', label: 'Holdings & NAVs', icon: TrendingUp },
                 { id: 'amc', label: 'AMC Analytics', icon: Building2 },
-                { id: 'dip', label: 'ATH Dip Analyzer', icon: Sparkles },
+                { id: 'watchlist', label: 'Watchlist', icon: Star },
                 { id: 'orders', label: 'Order History', icon: ListOrdered }
               ].map(sub => {
                 const Icon = sub.icon;
@@ -122,6 +124,7 @@ function DashboardContent() {
             {mfSubTab === 'holdings' && (
               <div className="space-y-4 sm:space-y-6">
                 <PortfolioSummary />
+                <BrokerPortfolioChart />
                 <PortfolioChart />
 
                 <div className="mobile-card-glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
@@ -201,8 +204,13 @@ function DashboardContent() {
             {/* MF SubTab 2: AMC Analytics */}
             {mfSubTab === 'amc' && <AMCAnalytics />}
 
-            {/* MF SubTab 3: ATH Dip Analyzer */}
-            {mfSubTab === 'dip' && <DipAnalyzer onOpenSchemeModal={(code) => setSelectedSchemeCode(code)} />}
+            {/* MF SubTab 3: Watchlist */}
+            {mfSubTab === 'watchlist' && (
+              <WatchlistManager
+                onOpenAddTx={(name, code) => handleOpenAddTx(name, code)}
+                onOpenSchemeModal={(code) => setSelectedSchemeCode(code)}
+              />
+            )}
 
             {/* MF SubTab 4: Orders */}
             {mfSubTab === 'orders' && <TransactionList onOpenAddTx={() => handleOpenAddTx()} onEditTx={(tx) => handleEditTx(tx)} />}
