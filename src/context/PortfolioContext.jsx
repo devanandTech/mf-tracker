@@ -431,7 +431,7 @@ export function PortfolioProvider({ children }) {
     // Handle React SyntheticEvent objects when passed from onClick={exportData}
     let pass = (typeof customPassphrase === 'string')
       ? customPassphrase
-      : window.prompt("Security Lock: Enter an Encryption Password to secure your backup file (Or leave empty for standard JSON):");
+      : window.prompt("Security Lock: Enter an Encryption Password to secure your backup file (Or leave empty for standard unencrypted JSON):");
 
     if (pass && typeof pass === 'string' && pass.trim()) {
       try {
@@ -444,14 +444,22 @@ export function PortfolioProvider({ children }) {
       }
     }
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(finalContent);
+    // Use Blob and URL.createObjectURL to ensure Android Chrome saves file with exact .json extension
+    const blob = new Blob([finalContent], { type: 'application/json' });
+    const blobUrl = URL.createObjectURL(blob);
+
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("href", blobUrl);
     const prefix = isEncryptedFile ? 'Encrypted_Wealth_Portfolio' : 'Wealth_Portfolio_Backup';
-    downloadAnchor.setAttribute("download", `${prefix}_${new Date().toISOString().split('T')[0]}.json`);
+    const filename = `${prefix}_${new Date().toISOString().split('T')[0]}.json`;
+    downloadAnchor.setAttribute("download", filename);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
-    downloadAnchor.remove();
+
+    setTimeout(() => {
+      downloadAnchor.remove();
+      URL.revokeObjectURL(blobUrl);
+    }, 1000);
     
     if (!isEncryptedFile) {
       showToast('Standard unencrypted portfolio backup exported');
@@ -462,14 +470,14 @@ export function PortfolioProvider({ children }) {
     let jsonContent = fileInputData;
     const initialPass = (typeof customPassphrase === 'string') ? customPassphrase : null;
 
-    // If file input is an object or string, check if it is encrypted
+    // Handle string inputs (parse JSON or decrypt)
     if (typeof fileInputData === 'string') {
       try {
         const parsedObj = JSON.parse(fileInputData);
         if (parsedObj && parsedObj.isEncrypted) {
           const pass = initialPass !== null
             ? initialPass
-            : window.prompt("Encrypted File Detected: Enter the Decryption Key/Password:");
+            : window.prompt("Encrypted File Detected: Enter Decryption Key / Password:");
 
           if (!pass || typeof pass !== 'string' || !pass.trim()) {
             showToast('Decryption cancelled', 'info');
@@ -489,7 +497,7 @@ export function PortfolioProvider({ children }) {
     } else if (fileInputData && fileInputData.isEncrypted) {
       const pass = initialPass !== null
         ? initialPass
-        : window.prompt("Encrypted File Detected: Enter the Decryption Key/Password:");
+        : window.prompt("Encrypted File Detected: Enter Decryption Key / Password:");
 
       if (!pass || typeof pass !== 'string' || !pass.trim()) {
         showToast('Decryption cancelled', 'info');
@@ -506,15 +514,107 @@ export function PortfolioProvider({ children }) {
       }
     }
 
-    if (jsonContent && typeof jsonContent === 'object') {
-      if (Array.isArray(jsonContent.transactions)) { setTransactions(jsonContent.transactions); saveTransactionsToDB(jsonContent.transactions); }
-      if (Array.isArray(jsonContent.fds)) { setFds(jsonContent.fds); saveFDsToDB(jsonContent.fds); }
-      if (Array.isArray(jsonContent.rds)) { setRds(jsonContent.rds); saveRDsToDB(jsonContent.rds); }
-      if (Array.isArray(jsonContent.insurances)) { setInsurances(jsonContent.insurances); saveInsurancesToDB(jsonContent.insurances); }
-      if (Array.isArray(jsonContent.accounts)) { setAccounts(jsonContent.accounts); saveAccountsToDB(jsonContent.accounts); }
-      showToast('Imported wealth portfolio backup cleanly');
+    if (!jsonContent) {
+      showToast('Empty or invalid file content', 'error');
+      return;
+    }
+
+    // Unwrap nested wrappers if present (e.g. jsonContent.data or jsonContent.portfolio)
+    let payload = jsonContent;
+    if (jsonContent.data && typeof jsonContent.data === 'object' && !Array.isArray(jsonContent.data)) {
+      payload = jsonContent.data;
+    } else if (jsonContent.portfolio && typeof jsonContent.portfolio === 'object' && !Array.isArray(jsonContent.portfolio)) {
+      payload = jsonContent.portfolio;
+    }
+
+    let importedTxCount = 0;
+    let importedFDCount = 0;
+    let importedRDCount = 0;
+    let importedInsCount = 0;
+    let importedAccCount = 0;
+
+    // Case 1: Direct Array of Transactions (Legacy Export Format)
+    if (Array.isArray(payload)) {
+      const validTxs = payload.filter(t => t && (t.schemeCode || t.schemeName || t.amount));
+      if (validTxs.length > 0) {
+        setTransactions(validTxs);
+        saveTransactionsToDB(validTxs);
+        importedTxCount = validTxs.length;
+      }
+    } else if (typeof payload === 'object') {
+      // Case 2: Standard Object Backup
+      if (Array.isArray(payload.transactions)) {
+        setTransactions(payload.transactions);
+        saveTransactionsToDB(payload.transactions);
+        importedTxCount = payload.transactions.length;
+      } else if (Array.isArray(payload.allTransactions)) {
+        setTransactions(payload.allTransactions);
+        saveTransactionsToDB(payload.allTransactions);
+        importedTxCount = payload.allTransactions.length;
+      }
+
+      if (Array.isArray(payload.fds)) {
+        setFds(payload.fds);
+        saveFDsToDB(payload.fds);
+        importedFDCount = payload.fds.length;
+      }
+
+      if (Array.isArray(payload.rds)) {
+        setRds(payload.rds);
+        saveRDsToDB(payload.rds);
+        importedRDCount = payload.rds.length;
+      }
+
+      if (Array.isArray(payload.insurances)) {
+        setInsurances(payload.insurances);
+        saveInsurancesToDB(payload.insurances);
+        importedInsCount = payload.insurances.length;
+      }
+
+      if (Array.isArray(payload.accounts) && payload.accounts.length > 0) {
+        setAccounts(payload.accounts);
+        saveAccountsToDB(payload.accounts);
+        importedAccCount = payload.accounts.length;
+      }
+    }
+
+    // Auto-recover missing referenced master accounts if old transactions reference account IDs not in state
+    const allImportedItems = [
+      ...(Array.isArray(payload.transactions) ? payload.transactions : Array.isArray(payload) ? payload : []),
+      ...(Array.isArray(payload.fds) ? payload.fds : []),
+      ...(Array.isArray(payload.rds) ? payload.rds : []),
+      ...(Array.isArray(payload.insurances) ? payload.insurances : [])
+    ];
+
+    const referencedAccIds = new Set(allImportedItems.map(i => i.accountId).filter(Boolean));
+    if (referencedAccIds.size > 0) {
+      setAccounts(prevAccounts => {
+        let updated = [...prevAccounts];
+        let hasChanges = false;
+        referencedAccIds.forEach(accId => {
+          if (accId !== 'acc_all' && !updated.some(a => a.id === accId)) {
+            let label = accId.replace(/^acc_/, '').toUpperCase();
+            updated.push({
+              id: accId,
+              name: `${label} Account`,
+              broker: label,
+              isDefault: false
+            });
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          saveAccountsToDB(updated);
+        }
+        return updated;
+      });
+    }
+
+    const totalImported = importedTxCount + importedFDCount + importedRDCount + importedInsCount;
+    if (totalImported > 0 || importedAccCount > 0) {
+      showToast(`Successfully imported ${totalImported} wealth records (${importedTxCount} Txs, ${importedFDCount} FDs, ${importedRDCount} RDs, ${importedInsCount} Insurances)`, 'success');
     } else {
-      showToast('Invalid JSON file format', 'error');
+      showToast('No valid transactions or wealth records found in backup file', 'error');
     }
   };
 
