@@ -255,7 +255,7 @@ export default function Navbar({ onOpenAddTx, onOpenSchemeModal }) {
                 className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hidden sm:block active-press cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
-                <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                <input type="file" accept=".json,application/json,text/plain,text/json" onChange={handleFileUpload} className="hidden" />
               </label>
 
             </div>
