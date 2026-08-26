@@ -98,9 +98,9 @@ function DashboardContent() {
             <div className="flex items-center gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto scrollbar-none">
               {[
                 { id: 'holdings', label: 'Holdings & NAVs', icon: TrendingUp },
-                { id: 'amc', label: 'AMC Analytics', icon: Building2 },
                 { id: 'watchlist', label: 'Watchlist', icon: Star },
-                { id: 'orders', label: 'Order History', icon: ListOrdered }
+                { id: 'orders', label: 'Order History', icon: ListOrdered },
+                { id: 'amc', label: 'AMC Analytics', icon: Building2 }
               ].map(sub => {
                 const Icon = sub.icon;
                 return (
@@ -109,7 +109,7 @@ function DashboardContent() {
                     onClick={() => setMfSubTab(sub.id)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active-press whitespace-nowrap ${
                       mfSubTab === sub.id
-                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-extrabold'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -128,11 +128,11 @@ function DashboardContent() {
                 <PortfolioChart />
 
                 <div className="mobile-card-glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-emerald-400" />
-                        Mutual Fund Holdings & NAVs
+                        Mutual Fund Holdings ({holdings.length})
                       </h3>
                     </div>
                     <button
@@ -144,50 +144,97 @@ function DashboardContent() {
                     </button>
                   </div>
 
-                  {/* Desktop Holdings Table */}
-                  <div className="overflow-x-auto">
+                  {/* MOBILE COMPACT LIST VIEW (<640px) - No Horizontal Scrolling Needed! */}
+                  <div className="space-y-2.5 sm:hidden">
+                    {holdings.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500 text-xs">
+                        No active mutual fund holdings. Tap "+ Add Tx" to record transactions.
+                      </div>
+                    ) : (
+                      holdings.map((h) => (
+                        <div
+                          key={h.schemeCode}
+                          className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 space-y-2.5 active-press"
+                          onClick={() => setSelectedSchemeCode(h.schemeCode)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-xs font-bold text-slate-100 truncate leading-snug">
+                                {h.schemeName}
+                              </h4>
+                              <p className="text-[10px] text-slate-500 font-mono truncate">{h.fundHouse}</p>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSchemeCode(h.schemeCode);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-cyan-400 text-[10px] font-bold flex-shrink-0"
+                            >
+                              Chart
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800/80 text-center font-mono">
+                            <div>
+                              <span className="text-[9px] text-slate-500 block uppercase font-sans font-semibold">Valuation</span>
+                              <span className="text-xs font-black text-white">₹{Math.round(h.currentValuation).toLocaleString('en-IN')}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] text-slate-500 block uppercase font-sans font-semibold">Gain / Loss</span>
+                              <span className={`text-xs font-black ${h.totalReturnINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {h.totalReturnINR >= 0 ? '+' : ''}₹{Math.round(h.totalReturnINR).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] text-slate-500 block uppercase font-sans font-semibold">Current NAV</span>
+                              <span className="text-xs font-bold text-slate-200">₹{h.currentNAV.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1 pt-0.5">
+                            <span>Units: <strong className="text-cyan-400">{h.netUnits.toFixed(3)}</strong></span>
+                            <span>Avg Buy: <strong className="text-cyan-300">₹{h.avgBuyNAV.toFixed(2)}</strong></span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* DESKTOP STREAMLINED TABLE (≥640px) */}
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-left text-xs text-slate-300">
                       <thead className="bg-slate-900/90 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-700/80">
                         <tr>
                           <th className="py-3 px-4">Scheme Name</th>
-                          <th className="py-3 px-3 text-center">First Tx</th>
-                          <th className="py-3 px-3 text-center">Last Tx</th>
                           <th className="py-3 px-3 text-right">Units</th>
                           <th className="py-3 px-3 text-right">Avg NAV</th>
                           <th className="py-3 px-3 text-right">Current NAV</th>
                           <th className="py-3 px-3 text-right">Valuation (₹)</th>
-                          <th className="py-3 px-3 text-right">Gain/Loss</th>
-                          <th className="py-3 px-3 text-center">Dip Status</th>
-                          <th className="py-3 px-4 text-right">Analyze</th>
+                          <th className="py-3 px-3 text-right">Gain / Loss</th>
+                          <th className="py-3 px-4 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-700/50">
                         {holdings.map((h) => (
                           <tr key={h.schemeCode} className="hover:bg-slate-700/40 transition-colors">
-                            <td className="py-3.5 px-4 font-semibold text-slate-100 max-w-xs truncate">
-                              <div>{h.schemeName}</div>
-                              <div className="text-[10px] text-slate-500 font-mono">{h.fundHouse}</div>
+                            <td className="py-3 px-4 font-semibold text-slate-100 max-w-[240px] truncate">
+                              <div className="truncate font-bold text-xs">{h.schemeName}</div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">{h.fundHouse}</div>
                             </td>
-                            <td className="py-3.5 px-3 text-center font-mono text-[11px] text-slate-300">{h.firstTxDate}</td>
-                            <td className="py-3.5 px-3 text-center font-mono text-[11px] text-slate-300">{h.lastTxDate}</td>
-                            <td className="py-3.5 px-3 text-right font-mono text-cyan-400">{h.netUnits.toFixed(3)}</td>
-                            <td className="py-3.5 px-3 text-right font-mono text-cyan-300 font-bold">₹{h.avgBuyNAV.toFixed(2)}</td>
-                            <td className="py-3.5 px-3 text-right font-mono font-bold text-white">₹{h.currentNAV.toFixed(2)}</td>
-                            <td className="py-3.5 px-3 text-right font-mono font-bold text-white">₹{Math.round(h.currentValuation).toLocaleString('en-IN')}</td>
-                            <td className={`py-3.5 px-3 text-right font-mono font-bold ${h.totalReturnINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <td className="py-3 px-3 text-right font-mono text-cyan-400">{h.netUnits.toFixed(3)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-cyan-300 font-bold">₹{h.avgBuyNAV.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-white">₹{h.currentNAV.toFixed(2)}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-white">₹{Math.round(h.currentValuation).toLocaleString('en-IN')}</td>
+                            <td className={`py-3 px-3 text-right font-mono font-bold ${h.totalReturnINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {h.totalReturnINR >= 0 ? '+' : ''}₹{Math.round(h.totalReturnINR).toLocaleString('en-IN')}
                             </td>
-                            <td className="py-3.5 px-3 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                h.dipStatus.severity > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              }`}>
-                                {h.dipStatus.label}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right">
+                            <td className="py-3 px-4 text-center">
                               <button
                                 onClick={() => setSelectedSchemeCode(h.schemeCode)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-emerald-500 hover:text-slate-950 text-slate-200 text-xs font-medium"
+                                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-cyan-400 border border-slate-700 text-xs font-bold transition-all active-press"
                               >
                                 Chart
                               </button>
@@ -201,10 +248,7 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* MF SubTab 2: AMC Analytics */}
-            {mfSubTab === 'amc' && <AMCAnalytics />}
-
-            {/* MF SubTab 3: Watchlist */}
+            {/* MF SubTab 2: Watchlist */}
             {mfSubTab === 'watchlist' && (
               <WatchlistManager
                 onOpenAddTx={(name, code) => handleOpenAddTx(name, code)}
@@ -212,8 +256,11 @@ function DashboardContent() {
               />
             )}
 
-            {/* MF SubTab 4: Orders */}
+            {/* MF SubTab 3: Orders */}
             {mfSubTab === 'orders' && <TransactionList onOpenAddTx={() => handleOpenAddTx()} onEditTx={(tx) => handleEditTx(tx)} />}
+
+            {/* MF SubTab 4: AMC Analytics */}
+            {mfSubTab === 'amc' && <AMCAnalytics />}
 
           </div>
         )}

@@ -112,6 +112,31 @@ export function PortfolioProvider({ children }) {
   useEffect(() => { if (isLoaded) saveInsurancesToDB(insurances); }, [insurances, isLoaded]);
   useEffect(() => { if (isLoaded) saveWatchlistToDB(watchlist); }, [watchlist, isLoaded]);
 
+  // Auto-sync bought schemes into watchlist by default
+  useEffect(() => {
+    if (!isLoaded) return;
+    const rawHoldings = calculateHoldings(transactions, schemeDetailsMap);
+    if (!rawHoldings || rawHoldings.length === 0) return;
+
+    setWatchlist(prev => {
+      let updated = [...prev];
+      let hasChanges = false;
+      rawHoldings.forEach(h => {
+        const code = parseInt(h.schemeCode, 10);
+        if (code && !updated.some(w => parseInt(w.schemeCode, 10) === code)) {
+          updated.push({
+            schemeCode: code,
+            schemeName: h.schemeName,
+            fundHouse: h.fundHouse || 'Mutual Fund',
+            addedAt: new Date().toISOString()
+          });
+          hasChanges = true;
+        }
+      });
+      return hasChanges ? updated : prev;
+    });
+  }, [isLoaded, transactions, schemeDetailsMap]);
+
   // Refresh scheme details from IndexedDB or Network (includes Watchlist schemes!)
   const refreshSchemeDetails = useCallback(async (forceSync = false) => {
     const uniqueCodes = [...new Set([

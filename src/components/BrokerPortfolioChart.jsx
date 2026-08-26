@@ -190,33 +190,30 @@ export default function BrokerPortfolioChart() {
   };
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-xl space-y-3.5">
       
       {/* Top Header & Filters */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.2 rounded-md text-[9px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               Broker Analytics
             </span>
           </div>
-          <h3 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-400" /> Investment Growth & Valuation Curve
+          <h3 className="text-base sm:text-lg font-black text-white tracking-tight mt-1 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-400" /> Investment Growth & Valuation Curve
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Real-time capital growth vs total cost filtered by Account and Scheme
-          </p>
         </div>
 
         {/* Filter Dropdowns */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           
           {/* Master Account Filter */}
-          <div className="flex-1 sm:flex-initial min-w-[130px]">
+          <div className="flex-1 sm:flex-initial min-w-[120px]">
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 px-3 py-2 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-emerald-500"
             >
               {accounts.map(acc => (
                 <option key={acc.id} value={acc.id}>
@@ -227,11 +224,11 @@ export default function BrokerPortfolioChart() {
           </div>
 
           {/* Specific Scheme Filter */}
-          <div className="flex-1 sm:flex-initial min-w-[160px] max-w-[220px]">
+          <div className="flex-1 sm:flex-initial min-w-[150px] max-w-[200px]">
             <select
               value={selectedSchemeCode}
               onChange={(e) => setSelectedSchemeCode(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 px-3 py-2 focus:outline-none focus:border-emerald-500 truncate"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 truncate"
             >
               <option value="all_schemes">All Portfolio Schemes</option>
               {holdings.map(h => (
@@ -243,12 +240,12 @@ export default function BrokerPortfolioChart() {
           </div>
 
           {/* Timeframe Buttons */}
-          <div className="flex items-center bg-slate-800/90 p-1 rounded-xl border border-slate-700/80">
+          <div className="flex items-center bg-slate-800/90 p-0.5 rounded-xl border border-slate-700/80">
             {['1M', '3M', '6M', '1Y', 'ALL'].map(tf => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all ${
                   timeframe === tf
                     ? 'bg-emerald-500 text-slate-950 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
@@ -263,30 +260,30 @@ export default function BrokerPortfolioChart() {
       </div>
 
       {/* Selected Filter Metrics Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/60 p-2.5 sm:p-3 rounded-xl border border-slate-800/80">
         <div>
-          <span className="text-[10px] text-slate-400 font-semibold uppercase block">Current Valuation</span>
-          <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">
+          <span className="text-[9px] text-slate-400 font-semibold uppercase block">Current Valuation</span>
+          <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">
             ₹{metrics.valuation.toLocaleString('en-IN')}
           </span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Invested</span>
-          <span className="text-base sm:text-lg font-black text-cyan-300 font-mono">
+          <span className="text-[9px] text-slate-400 font-semibold uppercase block">Total Invested</span>
+          <span className="text-sm sm:text-base font-black text-cyan-300 font-mono">
             ₹{metrics.invested.toLocaleString('en-IN')}
           </span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Returns</span>
-          <span className={`text-base sm:text-lg font-black font-mono ${
+          <span className="text-[9px] text-slate-400 font-semibold uppercase block">Total Returns</span>
+          <span className={`text-sm sm:text-base font-black font-mono ${
             metrics.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'
           }`}>
             {metrics.profit >= 0 ? '+' : ''}₹{metrics.profit.toLocaleString('en-IN')}
           </span>
         </div>
         <div>
-          <span className="text-[10px] text-slate-400 font-semibold uppercase block">Absolute Gain</span>
-          <span className={`text-base sm:text-lg font-black font-mono ${
+          <span className="text-[9px] text-slate-400 font-semibold uppercase block">Absolute Gain</span>
+          <span className={`text-sm sm:text-base font-black font-mono ${
             metrics.profitPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
           }`}>
             {metrics.profitPct >= 0 ? '+' : ''}{metrics.profitPct}%
@@ -296,11 +293,11 @@ export default function BrokerPortfolioChart() {
 
       {/* Recharts Area Chart */}
       {chartData.length === 0 ? (
-        <div className="h-64 flex items-center justify-center text-slate-500 text-xs">
+        <div className="h-56 flex items-center justify-center text-slate-500 text-xs">
           No investment history found for the selected filter combination. Record transactions to view your growth curve.
         </div>
       ) : (
-        <div className="h-72 w-full">
+        <div className="h-56 sm:h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
