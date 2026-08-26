@@ -35,6 +35,7 @@ export default function InsuranceManager() {
 
   const handleOpenAdd = () => {
     setEditingPolicy(null);
+    setAccountId(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
     setPolicyName('');
     setProvider('');
     setPolicyType('Health');

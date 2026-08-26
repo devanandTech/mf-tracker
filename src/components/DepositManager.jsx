@@ -57,6 +57,7 @@ export default function DepositManager() {
 
   const handleOpenAddFD = () => {
     setEditingItem(null);
+    setFdAccountId(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
     setFdBankName('');
     setFdTitle('');
     setFdPrincipal('');
@@ -70,7 +71,7 @@ export default function DepositManager() {
 
   const handleEditFD = (f) => {
     setEditingItem(f);
-    setFdAccountId(f.accountId);
+    setFdAccountId(f.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : firstAccId));
     setFdBankName(f.bankName || '');
     setFdTitle(f.title || '');
     setFdPrincipal(String(f.principalAmount || ''));
@@ -85,6 +86,7 @@ export default function DepositManager() {
 
   const handleOpenAddRD = () => {
     setEditingItem(null);
+    setRdAccountId(activeAccountId !== 'acc_all' ? activeAccountId : firstAccId);
     setRdBankName('');
     setRdTitle('');
     setRdInstallment('');
