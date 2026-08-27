@@ -42,7 +42,7 @@ export default function InsuranceManager() {
     setPolicyNumber('');
     setSumAssured('');
     setPremiumAmount('');
-    setPremiumFrequency('Yearly');
+    setPremiumFrequency('3-Yearly (3 Years Direct)');
     setNextDueDate('');
     setNotes('');
     setIsModalOpen(true);
@@ -92,7 +92,19 @@ export default function InsuranceManager() {
   };
 
   const totalSumAssured = insurances.reduce((acc, p) => acc + parseFloat(p.sumAssured || 0), 0);
-  const totalAnnualPremiums = insurances.reduce((acc, p) => acc + parseFloat(p.premiumAmount || 0), 0);
+  
+  // Calculate normalized annual recurring premium based on frequency (including 3-Year & 2-Year policies!)
+  const totalAnnualPremiums = insurances.reduce((acc, p) => {
+    const amt = parseFloat(p.premiumAmount || 0);
+    const freq = p.premiumFrequency || 'Yearly';
+    if (freq.includes('3-Year') || freq.includes('3 Years')) return acc + (amt / 3);
+    if (freq.includes('2-Year') || freq.includes('2 Years')) return acc + (amt / 2);
+    if (freq.includes('Half-Yearly')) return acc + (amt * 2);
+    if (freq.includes('Quarterly')) return acc + (amt * 4);
+    if (freq.includes('Monthly')) return acc + (amt * 12);
+    if (freq.includes('Single') || freq.includes('One-Time')) return acc;
+    return acc + amt; // Default Yearly
+  }, 0);
 
   return (
     <div className="space-y-6">
@@ -109,7 +121,7 @@ export default function InsuranceManager() {
             Insurance Policies & Renewals
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Track Health, Term, Life & Vehicle policies with 15-day premium renewal alert notifications
+            Track Health, Term, Life & Vehicle policies (supporting 1-Year, 2-Year & 3-Year direct payments)
           </p>
         </div>
 
@@ -138,13 +150,13 @@ export default function InsuranceManager() {
 
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-            Total Annual Premiums
+            Normalized Annual Premiums
           </span>
           <div className="text-xl sm:text-3xl font-black font-mono text-amber-300 tracking-tight mt-1">
             ₹{Math.round(totalAnnualPremiums).toLocaleString('en-IN')}
           </div>
           <span className="text-[10px] text-slate-400 mt-1 block">
-            Recurring Protection Cost
+            Annualized Recurring Protection Cost
           </span>
         </div>
       </div>
@@ -173,7 +185,7 @@ export default function InsuranceManager() {
                 <div key={p.id} className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 space-y-3 shadow-md">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-1.5 mb-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-teal-500/20 text-teal-300 border border-teal-500/30">
                           {p.policyType || 'Policy'}
                         </span>
@@ -217,7 +229,7 @@ export default function InsuranceManager() {
                       <span className="font-bold text-amber-300">₹{Math.round(p.premiumAmount || 0).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-slate-400 text-[10px]">
-                      <span>Next Due Date:</span>
+                      <span>Next Renewal Due:</span>
                       <span className="text-white font-bold">{p.nextDueDate || 'N/A'}</span>
                     </div>
                   </div>
@@ -257,7 +269,7 @@ export default function InsuranceManager() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. HDFC Optima Secure Health"
+                  placeholder="e.g. HDFC Optima Secure Health (3 Years)"
                   value={policyName}
                   onChange={(e) => setPolicyName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -270,7 +282,7 @@ export default function InsuranceManager() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. LIC, HDFC Ergo, Niva Bupa"
+                    placeholder="e.g. HDFC Ergo, Niva Bupa, Star Health"
                     value={provider}
                     onChange={(e) => setProvider(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -312,7 +324,7 @@ export default function InsuranceManager() {
                   <input
                     type="number"
                     required
-                    placeholder="e.g. 14500"
+                    placeholder="e.g. 35000"
                     value={premiumAmount}
                     onChange={(e) => setPremiumAmount(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono"
@@ -327,20 +339,23 @@ export default function InsuranceManager() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-400 mb-1">Premium Frequency</label>
+                  <label className="block text-slate-400 mb-1">Premium Payment Cycle</label>
                   <select
                     value={premiumFrequency}
                     onChange={(e) => setPremiumFrequency(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold"
                   >
-                    <option value="Yearly">Yearly</option>
-                    <option value="Half-Yearly">Half-Yearly</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Monthly">Monthly</option>
+                    <option value="3-Yearly (3 Years Direct)">3-Yearly (3 Years Direct)</option>
+                    <option value="2-Yearly (2 Years Direct)">2-Yearly (2 Years Direct)</option>
+                    <option value="Yearly">Yearly (Annual)</option>
+                    <option value="Half-Yearly">Half-Yearly (6 Months)</option>
+                    <option value="Quarterly">Quarterly (3 Months)</option>
+                    <option value="Monthly">Monthly (1 Month)</option>
+                    <option value="Single Premium / One-Time">Single Premium / One-Time</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1">Next Premium Due Date</label>
+                  <label className="block text-slate-400 mb-1">Next Premium / Renewal Due Date</label>
                   <input
                     type="date"
                     required

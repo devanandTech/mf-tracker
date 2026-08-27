@@ -28,7 +28,6 @@ export default function SettingsMasters() {
     rds,
     insurances,
     clearAllData,
-    loadSampleData,
     exportData,
     importData
   } = usePortfolio();
@@ -60,6 +59,12 @@ export default function SettingsMasters() {
     addAccount(newAccName.trim(), newAccBroker.trim() || 'Custom');
     setNewAccName('');
     setNewAccBroker('');
+  };
+
+  const handleDeleteAccount = (acc) => {
+    if (window.confirm(`Are you sure you want to delete master account "${acc.name}"? All transactions and records linked to this account will be affected.`)) {
+      deleteAccount(acc.id);
+    }
   };
 
   const handleFileUpload = (e) => {
@@ -205,7 +210,8 @@ export default function SettingsMasters() {
                         </button>
                         {!acc.isDefault && (
                           <button
-                            onClick={() => deleteAccount(acc.id)}
+                            onClick={() => handleDeleteAccount(acc)}
+                            title="Delete Account"
                             className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-rose-400"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -254,14 +260,6 @@ export default function SettingsMasters() {
             <span>Restore JSON Backup</span>
             <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
           </label>
-
-          <button
-            onClick={loadSampleData}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 rounded-xl text-xs font-bold active-press"
-          >
-            <RefreshCw className="w-4 h-4 text-cyan-400" />
-            <span>Reset Demo Portfolio</span>
-          </button>
 
           <button
             onClick={() => { if (confirm('Are you sure you want to clear all portfolio data?')) clearAllData(); }}

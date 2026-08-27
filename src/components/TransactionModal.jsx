@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function TransactionModal({ isOpen, onClose, initialSchemeName = '', initialSchemeCode = null, editTxData = null }) {
-  const { addTransaction, editTransaction, accounts, activeAccountId } = usePortfolio();
+  const { addTransaction, editTransaction, accounts, activeAccountId, allTransactions } = usePortfolio();
   const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
   const [selectedAccountId, setSelectedAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId);
 
@@ -35,6 +35,33 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
   const [isFetchingNAV, setIsFetchingNAV] = useState(false);
 
   const dropdownRef = useRef(null);
+
+  // Calculate current available units held for the selected scheme and account
+  const availableHoldingUnits = React.useMemo(() => {
+    if (!selectedScheme || !selectedScheme.schemeCode) return 0;
+    const code = parseInt(selectedScheme.schemeCode, 10);
+    
+    // Filter transactions for this scheme (and account if specific account selected)
+    const schemeTxs = allTransactions.filter(t => {
+      const matchCode = parseInt(t.schemeCode, 10) === code;
+      const matchAcc = selectedAccountId === 'acc_all' || t.accountId === selectedAccountId || (!t.accountId && selectedAccountId === 'acc_groww');
+      // If editing existing transaction, exclude it from current units count calculation
+      const isNotEditingCurrent = editTxData ? t.id !== editTxData.id : true;
+      return matchCode && matchAcc && isNotEditingCurrent;
+    });
+
+    let total = 0;
+    schemeTxs.forEach(t => {
+      const u = parseFloat(t.units || 0);
+      if (t.type === 'SELL') {
+        total -= u;
+      } else {
+        total += u;
+      }
+    });
+
+    return Math.max(0, total);
+  }, [selectedScheme, selectedAccountId, allTransactions, editTxData]);
 
   // Sync selectedAccountId, scheme, form fields whenever modal opens or mode changes
   useEffect(() => {
@@ -169,6 +196,20 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       return;
     }
 
+    const unitsVal = parseFloat(units || (parseFloat(amount) / parseFloat(nav)).toFixed(4));
+
+    // Validate SELL transaction against current available units holding
+    if (txType === 'SELL') {
+      if (availableHoldingUnits <= 0) {
+        alert(`Cannot record SELL transaction: You currently hold 0 units of "${selectedScheme.schemeName}".`);
+        return;
+      }
+      if (unitsVal > availableHoldingUnits + 0.0001) {
+        alert(`Over-sell Warning: You are trying to sell ${unitsVal.toFixed(3)} units, but you only hold ${availableHoldingUnits.toFixed(3)} units of "${selectedScheme.schemeName}".`);
+        return;
+      }
+    }
+
     const formattedDate = inputToDDMMYYYY(dateStr);
 
     const payload = {
@@ -179,7 +220,7 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       date: formattedDate,
       nav: parseFloat(nav),
       amount: parseFloat(amount),
-      units: parseFloat(units || (parseFloat(amount) / parseFloat(nav)).toFixed(4)),
+      units: unitsVal,
       notes
     };
 
@@ -277,7 +318,14 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
 
           {/* Transaction Type Buttons */}
           <div>
-            <label className="block text-slate-400 font-semibold mb-1">Transaction Type</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-slate-400 font-semibold">Transaction Type</label>
+              {selectedScheme && txType === 'SELL' && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  Available: {availableHoldingUnits.toFixed(4)} Units
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {['BUY', 'SIP', 'SELL'].map(type => (
                 <button

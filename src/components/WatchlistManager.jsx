@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { searchSchemes, getSchemeDetails } from '../api/mfApi.js';
 import { findNAVForDate } from '../utils/dateUtils.js';
@@ -28,13 +28,33 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
     showToast
   } = usePortfolio();
 
+  // Helper for default 6 months ago date in local YYYY-MM-DD
+  const get6MonthsAgoStr = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [customStartDate, setCustomStartDate] = useState('');
+
+  // Custom From & To dates (defaults From date to 6 months ago)
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    return localStorage.getItem('mf_watchlist_custom_from_date') || get6MonthsAgoStr();
+  });
   const [customEndDate, setCustomEndDate] = useState('');
   const searchRef = useRef(null);
+
+  const handleStartDateChange = (val) => {
+    const newVal = val || get6MonthsAgoStr();
+    setCustomStartDate(newVal);
+    localStorage.setItem('mf_watchlist_custom_from_date', newVal);
+  };
 
   // Search schemes for adding to watchlist
   useEffect(() => {
@@ -72,23 +92,23 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+      {/* Top Controls Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/30 border border-slate-800/90 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-3">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Live Tracker & Range Calculator
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.2 rounded-md text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Live Watchlist & Custom Return
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-1 flex items-center gap-2">
-              <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> Watchlist ({watchlist.length})
+            <h2 className="text-base sm:text-lg font-black text-white tracking-tight mt-0.5 flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" /> Watchlist ({watchlist.length})
             </h2>
           </div>
 
-          {/* Live Search & Add Bar */}
+          {/* Search & Add Bar */}
           <div className="w-full md:w-72 relative" ref={searchRef}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -98,7 +118,7 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => query.length >= 2 && setShowDropdown(true)}
-                className="w-full pl-9 pr-7 py-2 bg-slate-800 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-medium"
+                className="w-full pl-9 pr-7 py-1.5 bg-slate-800 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-amber-500 font-medium"
               />
               {isSearching && (
                 <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400 animate-spin" />
@@ -107,7 +127,7 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
 
             {/* Search Dropdown */}
             {showDropdown && searchResults.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-64 overflow-y-auto divide-y divide-slate-800">
+              <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-64 overflow-y-auto divide-y divide-slate-800">
                 {searchResults.map((item) => (
                   <button
                     key={item.schemeCode}
@@ -128,45 +148,38 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
           </div>
         </div>
 
-        {/* Custom Date Range Return Calculator Bar */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+        {/* Integrated Custom Date Range Filter Bar */}
+        <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 sm:p-2.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
             <Calendar className="w-3.5 h-3.5" />
-            <span>Range Calculator:</span>
+            <span className="text-[11px]">Custom Return Period:</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-1 justify-end">
-            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
               <span className="text-[10px] text-slate-400 font-medium">From:</span>
               <input
                 type="date"
                 value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-slate-200 focus:outline-none text-[11px]"
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-slate-200 focus:outline-none text-[11px] font-mono"
               />
             </div>
-            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+            <div className="flex items-center gap-1">
               <span className="text-[10px] text-slate-400 font-medium">To:</span>
               <input
                 type="date"
+                placeholder="Today"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-slate-200 focus:outline-none text-[11px]"
+                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-slate-200 focus:outline-none text-[11px] font-mono"
               />
             </div>
-            {customStartDate && (
-              <button
-                onClick={() => { setCustomStartDate(''); setCustomEndDate(''); }}
-                className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-[10px] font-bold border border-amber-500/30"
-              >
-                Clear
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Watchlist Items Feed Grid */}
+      {/* Watchlist Feed Grid */}
       {watchlist.length === 0 ? (
         <div className="mobile-card-glass rounded-2xl p-8 text-center space-y-2">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
@@ -186,7 +199,6 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
             let latestNAV = null;
             let prevNAV = null;
             let navChangePercent = null;
-            let return1W = null;
             let return1M = null;
             let return1Y = null;
             let customReturnPct = null;
@@ -201,11 +213,6 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
                 }
               }
 
-              if (details.data.length > 5) {
-                const nav1W = parseFloat(details.data[5].nav);
-                if (nav1W > 0) return1W = (((latestNAV - nav1W) / nav1W) * 100).toFixed(1);
-              }
-
               if (details.data.length > 20) {
                 const nav1M = parseFloat(details.data[20].nav);
                 if (nav1M > 0) return1M = (((latestNAV - nav1M) / nav1M) * 100).toFixed(1);
@@ -216,7 +223,7 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
                 if (nav1Y > 0) return1Y = (((latestNAV - nav1Y) / nav1Y) * 100).toFixed(1);
               }
 
-              // Compute Custom Date Range Return
+              // Compute Custom Date Range Return (defaults to 6 months ago)
               if (customStartDate) {
                 const startNav = findNAVForDate(details.data, customStartDate);
                 const endNav = customEndDate ? findNAVForDate(details.data, customEndDate) : latestNAV;
@@ -229,13 +236,13 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
             return (
               <div
                 key={item.schemeCode}
-                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-3.5 space-y-3 shadow-lg flex flex-col justify-between transition-all"
+                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-3 space-y-2.5 shadow-lg flex flex-col justify-between transition-all"
               >
                 <div>
                   {/* Scheme Header */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                         <span className="px-2 py-0.2 rounded-md text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
                           {item.fundHouse || 'Mutual Fund'}
                         </span>
@@ -255,21 +262,19 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
                     </button>
                   </div>
 
-                  {/* NAV Cards & Performance Badges */}
-                  <div className="mt-2.5 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
+                  {/* NAV Cards & Inline 4-Column Timeframe Grid */}
+                  <div className="mt-2 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold text-slate-400">Current NAV</span>
                       {latestNAV ? (
-                        <div className="text-right">
-                          <span className="text-sm font-black text-white font-mono">₹{latestNAV.toFixed(2)}</span>
-                        </div>
+                        <span className="text-sm font-black text-white font-mono">₹{latestNAV.toFixed(2)}</span>
                       ) : (
                         <span className="text-[10px] text-slate-500 italic">Fetching live NAV...</span>
                       )}
                     </div>
 
-                    {/* Timeframe Returns Grid */}
-                    <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-800/80 text-[9px] font-mono">
+                    {/* Inline 4-Column Returns Grid (1D | 1M | 1Y | Custom Range) */}
+                    <div className="grid grid-cols-4 gap-1 pt-1 border-t border-slate-800/80 text-[9px] font-mono">
                       <div className="bg-slate-900 p-1 rounded-lg text-center">
                         <span className="text-[8px] text-slate-500 block uppercase font-sans font-semibold">1D</span>
                         {navChangePercent !== null ? (
@@ -296,30 +301,38 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
                           </span>
                         ) : <span className="text-slate-500">—</span>}
                       </div>
-                    </div>
 
-                    {/* Custom Range Return Pill */}
-                    {customStartDate && (
-                      <div className="bg-amber-500/10 border border-amber-500/30 p-1.5 rounded-lg flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-[9px] text-amber-300 font-sans font-bold">Custom Range Return:</span>
+                      {/* Custom Range Return (Inline Next to 1Y) */}
+                      <div className={`p-1 rounded-lg text-center transition-colors ${
+                        customReturnPct !== null
+                          ? parseFloat(customReturnPct) >= 0
+                            ? 'bg-emerald-500/10 border border-emerald-500/30'
+                            : 'bg-rose-500/10 border border-rose-500/30'
+                          : 'bg-slate-900 border border-slate-800'
+                      }`}>
+                        <span className={`text-[8px] block uppercase font-sans font-bold truncate ${
+                          customReturnPct !== null
+                            ? parseFloat(customReturnPct) >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                            : 'text-slate-400'
+                        }`}>Custom</span>
                         {customReturnPct !== null ? (
                           <span className={`font-black ${parseFloat(customReturnPct) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {parseFloat(customReturnPct) >= 0 ? '+' : ''}{customReturnPct}%
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-[10px]">Calculating...</span>
+                          <span className="text-slate-500">—</span>
                         )}
                       </div>
-                    )}
+                    </div>
 
                   </div>
                 </div>
 
                 {/* Quick Action Buttons */}
-                <div className="pt-2 flex items-center gap-2 border-t border-slate-800/80">
+                <div className="pt-1.5 flex items-center gap-1.5 border-t border-slate-800/80">
                   <button
                     onClick={() => onOpenAddTx(item.schemeName, item.schemeCode)}
-                    className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] flex items-center justify-center gap-1 shadow-sm active-press"
+                    className="flex-1 py-1 px-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] flex items-center justify-center gap-1 shadow-sm active-press"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
                     <span>+ Record Tx</span>
@@ -327,7 +340,7 @@ export default function WatchlistManager({ onOpenAddTx, onOpenSchemeModal }) {
 
                   <button
                     onClick={() => onOpenSchemeModal(item.schemeCode)}
-                    className="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] flex items-center gap-1 border border-slate-700 active-press"
+                    className="py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] flex items-center gap-1 border border-slate-700 active-press"
                   >
                     <LineChart className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Chart</span>
