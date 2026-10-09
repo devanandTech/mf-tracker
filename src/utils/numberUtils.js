@@ -1,4 +1,18 @@
 /**
+ * Short Indian notation for chart axes: 950 -> "₹950", 45000 -> "₹45K", 250000 -> "₹2.5L", 12000000 -> "₹1.2Cr"
+ */
+export function formatCompactINR(value) {
+  const num = Number(value) || 0;
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  const trim = (n) => String(parseFloat(n.toFixed(abs >= 100000 ? 2 : 1)));
+  if (abs >= 10000000) return `${sign}₹${trim(abs / 10000000)}Cr`;
+  if (abs >= 100000) return `${sign}₹${trim(abs / 100000)}L`;
+  if (abs >= 1000) return `${sign}₹${trim(abs / 1000)}K`;
+  return `${sign}₹${Math.round(abs)}`;
+}
+
+/**
  * Converts a number to Indian Rupees format in words
  * e.g. 100000 -> "One Lakh Rupees Only (1.00 Lakhs)"
  * e.g. 50000 -> "Fifty Thousand Rupees Only (50.0k)"

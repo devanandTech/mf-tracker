@@ -59,8 +59,10 @@ export default function PortfolioSummary() {
           {formatINR(summary.totalInvested)}
         </div>
         <div className="mt-2 text-[10px] text-slate-400 border-t border-slate-800/80 pt-1.5 flex items-center justify-between font-mono">
-          <span className="font-sans font-semibold">Cost Basis</span>
-          <span className="font-semibold text-slate-300">Principal</span>
+          <span className="font-sans font-semibold" title="Profit or loss already booked on redeemed units">Realised P&L</span>
+          <span className={`font-bold ${summary.realizedPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {summary.realizedPnL >= 0 ? '+' : '-'}{formatINR(Math.abs(summary.realizedPnL))}
+          </span>
         </div>
       </div>
 
@@ -68,7 +70,7 @@ export default function PortfolioSummary() {
       <div className="mobile-card-glass rounded-2xl p-3 sm:p-3.5 shadow-lg relative overflow-hidden group hover:border-slate-700 transition-all">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Overall Gain
+            Unrealised Gain
           </span>
           <div className={`p-1.5 rounded-xl border ${
             summary.totalReturnINR >= 0
@@ -84,7 +86,9 @@ export default function PortfolioSummary() {
           {summary.totalReturnINR >= 0 ? '+' : ''}{formatINR(summary.totalReturnINR)}
         </div>
         <div className="mt-2 text-[10px] border-t border-slate-800/80 pt-1.5 flex items-center justify-between font-mono">
-          <span className="text-slate-400 font-sans font-semibold">Total Return</span>
+          <span className="text-slate-400 font-sans font-semibold" title="Annualised return (XIRR); needs at least 30 days of history">
+            XIRR {summary.xirr === null ? '—' : `${summary.xirr >= 0 ? '+' : ''}${summary.xirr.toFixed(1)}%`}
+          </span>
           <span className={`px-1.5 py-0.2 rounded-md font-bold text-[10px] ${
             summary.totalReturnPct >= 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
           }`}>

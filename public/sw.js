@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mf-pulse-pwa-v3';
+const CACHE_NAME = 'mf-pulse-pwa-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -57,14 +57,10 @@ self.addEventListener('fetch', (event) => {
           console.log('[SW] Serving API from cache storage for', url.pathname);
           const cachedResponse = await caches.match(request);
           if (cachedResponse) return cachedResponse;
+          // Report the failure honestly; the app falls back to its IndexedDB NAV copy
           return new Response(
-            JSON.stringify({
-              status: 'SUCCESS',
-              meta: { scheme_name: 'Cached Scheme (Offline)', fund_house: 'Offline Cache' },
-              data: [],
-              isOfflineFallback: true
-            }),
-            { headers: { 'Content-Type': 'application/json' } }
+            JSON.stringify({ status: 'OFFLINE', data: [] }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } }
           );
         })
     );

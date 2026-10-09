@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { calculateFDMaturity, calculateRDMaturity, calculateMaturityDate, get15DayAlertStatus } from '../utils/interestUtils.js';
 import { numberToWordsINR } from '../utils/numberUtils.js';
+import { toInputDateFormat } from '../utils/dateUtils.js';
 import {
   Landmark,
   PlusCircle,
@@ -32,7 +33,7 @@ export default function DepositManager() {
   const [fdPrincipal, setFdPrincipal] = useState('');
   const [fdRate, setFdRate] = useState('');
   const [fdTenure, setFdTenure] = useState('');
-  const [fdStartDate, setFdStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [fdStartDate, setFdStartDate] = useState(() => toInputDateFormat(new Date()));
   const [fdPayoutFrequency, setFdPayoutFrequency] = useState('At Maturity'); // 'At Maturity' | 'Monthly' | 'Quarterly' | 'Yearly'
   const [fdMaturityAction, setFdMaturityAction] = useState('Auto-Renew (Principal + Interest)'); // 'Auto-Renew (Principal + Interest)' | 'Auto-Renew (Principal Only)' | 'Auto-Close & Credit to Account'
   const [fdNotes, setFdNotes] = useState('');
@@ -44,7 +45,7 @@ export default function DepositManager() {
   const [rdInstallment, setRdInstallment] = useState('');
   const [rdRate, setRdRate] = useState('');
   const [rdTenure, setRdTenure] = useState('');
-  const [rdStartDate, setRdStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [rdStartDate, setRdStartDate] = useState(() => toInputDateFormat(new Date()));
   const [rdNotes, setRdNotes] = useState('');
 
   // Computed FD values
@@ -77,7 +78,7 @@ export default function DepositManager() {
     setFdPrincipal(String(f.principalAmount || ''));
     setFdRate(String(f.interestRate || ''));
     setFdTenure(String(f.tenureMonths || ''));
-    setFdStartDate(f.startDate || new Date().toISOString().split('T')[0]);
+    setFdStartDate(f.startDate || toInputDateFormat(new Date()));
     setFdPayoutFrequency(f.payoutFrequency || 'At Maturity');
     setFdMaturityAction(f.maturityAction || 'Auto-Renew (Principal + Interest)');
     setFdNotes(f.notes || '');
@@ -104,7 +105,7 @@ export default function DepositManager() {
     setRdInstallment(String(r.monthlyInstallment || ''));
     setRdRate(String(r.interestRate || ''));
     setRdTenure(String(r.tenureMonths || ''));
-    setRdStartDate(r.startDate || new Date().toISOString().split('T')[0]);
+    setRdStartDate(r.startDate || toInputDateFormat(new Date()));
     setRdNotes(r.notes || '');
     setIsRDModalOpen(true);
   };
@@ -289,7 +290,7 @@ export default function DepositManager() {
                       <button onClick={() => handleEditFD(f)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deleteFD(f.id)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400">
+                      <button onClick={() => { if (window.confirm(`Delete FD "${f.title}"?`)) deleteFD(f.id); }} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -399,7 +400,7 @@ export default function DepositManager() {
                       <button onClick={() => handleEditRD(r)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deleteRD(r.id)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400">
+                      <button onClick={() => { if (window.confirm(`Delete RD "${r.title}"?`)) deleteRD(r.id); }} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

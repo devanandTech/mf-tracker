@@ -7,6 +7,7 @@ import PortfolioChart from './components/PortfolioChart.jsx';
 import BrokerPortfolioChart from './components/BrokerPortfolioChart.jsx';
 import WatchlistManager from './components/WatchlistManager.jsx';
 import AMCAnalytics from './components/AMCAnalytics.jsx';
+import AMCFilterChip from './components/AMCFilterChip.jsx';
 import DepositManager from './components/DepositManager.jsx';
 import InsuranceManager from './components/InsuranceManager.jsx';
 import SettingsMasters from './components/SettingsMasters.jsx';
@@ -43,11 +44,11 @@ function DashboardContent() {
   const [mfSubTab, setMfSubTab] = useState('holdings'); // 'holdings' | 'amc' | 'watchlist' | 'orders'
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
-  const [addTxInitialScheme, setAddTxInitialScheme] = useState({ name: '', code: null });
+  const [addTxInitialScheme, setAddTxInitialScheme] = useState({ name: '', code: null, type: 'BUY' });
   const [editingTx, setEditingTx] = useState(null);
 
-  const handleOpenAddTx = (schemeName = '', schemeCode = null) => {
-    setAddTxInitialScheme({ name: schemeName, code: schemeCode });
+  const handleOpenAddTx = (schemeName = '', schemeCode = null, type = 'BUY') => {
+    setAddTxInitialScheme({ name: schemeName, code: schemeCode, type });
     setEditingTx(null);
     setIsAddTxOpen(true);
   };
@@ -123,6 +124,7 @@ function DashboardContent() {
             {/* MF SubTab 1: Holdings */}
             {mfSubTab === 'holdings' && (
               <div className="space-y-4 sm:space-y-6">
+                <AMCFilterChip />
                 <PortfolioSummary />
                 <BrokerPortfolioChart />
                 <PortfolioChart />
@@ -198,6 +200,27 @@ function DashboardContent() {
                             <span>Units: <strong className="text-cyan-400">{h.netUnits.toFixed(3)}</strong></span>
                             <span>Avg Buy: <strong className="text-cyan-300">₹{h.avgBuyNAV.toFixed(2)}</strong></span>
                           </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAddTx(h.schemeName, h.schemeCode, 'BUY');
+                              }}
+                              className="py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold active-press"
+                            >
+                              Buy More
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAddTx(h.schemeName, h.schemeCode, 'SELL');
+                              }}
+                              className="py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-bold active-press"
+                            >
+                              Redeem
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -232,12 +255,26 @@ function DashboardContent() {
                               {h.totalReturnINR >= 0 ? '+' : ''}₹{Math.round(h.totalReturnINR).toLocaleString('en-IN')}
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <button
-                                onClick={() => setSelectedSchemeCode(h.schemeCode)}
-                                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-cyan-400 border border-slate-700 text-xs font-bold transition-all active-press"
-                              >
-                                Chart
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => setSelectedSchemeCode(h.schemeCode)}
+                                  className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-cyan-400 border border-slate-700 text-xs font-bold transition-all active-press"
+                                >
+                                  Chart
+                                </button>
+                                <button
+                                  onClick={() => handleOpenAddTx(h.schemeName, h.schemeCode, 'BUY')}
+                                  className="px-3 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all active-press"
+                                >
+                                  Buy
+                                </button>
+                                <button
+                                  onClick={() => handleOpenAddTx(h.schemeName, h.schemeCode, 'SELL')}
+                                  className="px-3 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all active-press"
+                                >
+                                  Redeem
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -288,6 +325,7 @@ function DashboardContent() {
         onClose={() => setIsAddTxOpen(false)}
         initialSchemeName={addTxInitialScheme.name}
         initialSchemeCode={addTxInitialScheme.code}
+        initialType={addTxInitialScheme.type}
         editTxData={editingTx}
       />
 
@@ -296,7 +334,7 @@ function DashboardContent() {
         <SchemeDetailModal
           schemeCode={selectedSchemeCode}
           onClose={() => setSelectedSchemeCode(null)}
-          onOpenAddTx={(name, code) => handleOpenAddTx(name, code)}
+          onOpenAddTx={(name, code, type) => handleOpenAddTx(name, code, type)}
         />
       )}
 

@@ -19,7 +19,7 @@ export default function TransactionList({ onOpenAddTx, onEditTx }) {
   const [sortBy, setSortBy] = useState('date_desc');
 
   const filteredTxs = transactions.filter(tx => {
-    const matchesSearch = !searchFilter || tx.schemeName.toLowerCase().includes(searchFilter.toLowerCase());
+    const matchesSearch = !searchFilter || (tx.schemeName || '').toLowerCase().includes(searchFilter.toLowerCase());
     const matchesType = typeFilter === 'ALL' || (typeFilter === 'BUY' ? tx.type !== 'SELL' : tx.type === 'SELL');
     return matchesSearch && matchesType;
   }).sort((a, b) => {
@@ -195,7 +195,14 @@ export default function TransactionList({ onOpenAddTx, onEditTx }) {
                       <button onClick={() => onEditTx(tx)} className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white">
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deleteTransaction(tx.id)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400">
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete ${tx.type} transaction for ${tx.schemeName}?`)) {
+                            deleteTransaction(tx.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400"
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { getSchemeDetails } from '../api/mfApi.js';
 import SchemeCharts from './SchemeCharts.jsx';
+import { buildValuationSeries } from '../utils/calculations.js';
+import { formatCompactINR } from '../utils/numberUtils.js';
 import {
   X,
   Building2,
@@ -51,67 +53,8 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
     if (!holding || !holding.transactions || holding.transactions.length === 0 || !details || !details.data) {
       return [];
     }
-
-    const txs = [...holding.transactions].sort((a, b) => {
-      const partsA = (a.date || '').split('-').map(Number);
-      const partsB = (b.date || '').split('-').map(Number);
-      return new Date(partsA[2], partsA[1] - 1, partsA[0]) - new Date(partsB[2], partsB[1] - 1, partsB[0]);
-    });
-
-    const firstTx = txs[0];
-    const [fd, fm, fy] = (firstTx.date || '').split('-').map(Number);
-    const startDate = new Date(fy, fm - 1, fd);
-    const endDate = new Date();
-
-    const points = [];
-    let curr = new Date(startDate);
-    const stepDays = 5;
-
-    while (curr <= endDate) {
-      const dStr = curr.toISOString().split('T')[0];
-      const [y, m, d] = dStr.split('-').map(Number);
-      const currTime = new Date(y, m - 1, d).getTime();
-
-      let cumUnits = 0;
-      let cumCost = 0;
-
-      txs.forEach(t => {
-        const [td, tm, ty] = (t.date || '').split('-').map(Number);
-        const txTime = new Date(ty, tm - 1, td).getTime();
-        if (txTime <= currTime) {
-          if (t.type === 'BUY' || t.type === 'SIP') {
-            cumUnits += parseFloat(t.units || 0);
-            cumCost += parseFloat(t.amount || 0);
-          } else if (t.type === 'SELL') {
-            cumUnits -= parseFloat(t.units || 0);
-            cumCost -= parseFloat(t.amount || 0);
-          }
-        }
-      });
-
-      if (cumUnits > 0) {
-        const navEntry = details.data.find(n => {
-          const [nd, nm, ny] = (n.date || '').split('-').map(Number);
-          const navDateStr = `${ny}-${String(nm).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
-          return navDateStr <= dStr;
-        }) || details.data[0];
-
-        const navVal = navEntry ? parseFloat(navEntry.nav) : 0;
-        const currentVal = cumUnits * navVal;
-
-        points.push({
-          date: curr.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }),
-          invested: Math.round(Math.max(0, cumCost)),
-          valuation: Math.round(Math.max(0, currentVal)),
-          profit: Math.round(currentVal - cumCost)
-        });
-      }
-
-      curr.setDate(curr.getDate() + stepDays);
-    }
-
-    return points;
-  }, [holding, details]);
+    return buildValuationSeries(holding.transactions, { [parseInt(schemeCode, 10)]: details });
+  }, [holding, details, schemeCode]);
 
   if (!schemeCode) return null;
 
@@ -236,6 +179,68 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                 </div>
               </div>
 
+              {/* My position in this scheme: cost, returns and quick actions */}
+              {holding && (
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3 space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 font-mono">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans font-medium">Invested</span>
+                      <span className="text-sm font-bold text-slate-100">₹{Math.round(holding.netInvested).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans font-medium">Avg Cost NAV</span>
+                      <span className="text-sm font-bold text-cyan-300">₹{holding.avgBuyNAV.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans font-medium">Unrealised P&L</span>
+                      <span className={`text-sm font-bold ${holding.totalReturnINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {holding.totalReturnINR >= 0 ? '+' : '-'}₹{Math.round(Math.abs(holding.totalReturnINR)).toLocaleString('en-IN')}
+                        <span className="text-[10px]"> ({holding.totalReturnPct >= 0 ? '+' : ''}{holding.totalReturnPct.toFixed(1)}%)</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans font-medium">Realised P&L</span>
+                      <span className={`text-sm font-bold ${holding.realizedPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {holding.realizedPnL >= 0 ? '+' : '-'}₹{Math.round(Math.abs(holding.realizedPnL)).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-sans font-medium">XIRR</span>
+                      {holding.xirr === null ? (
+                        <span className="text-sm font-bold text-slate-500" title="Needs at least 30 days of history">—</span>
+                      ) : (
+                        <span className={`text-sm font-bold ${holding.xirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {holding.xirr >= 0 ? '+' : ''}{holding.xirr.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {onOpenAddTx && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          onClose();
+                          onOpenAddTx(holding.schemeName, schemeCode, 'BUY');
+                        }}
+                        className="py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold active-press"
+                      >
+                        Buy More
+                      </button>
+                      <button
+                        onClick={() => {
+                          onClose();
+                          onOpenAddTx(holding.schemeName, schemeCode, 'SELL');
+                        }}
+                        className="py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold active-press"
+                      >
+                        Redeem
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Chart Mode Switcher Tab (NAV History vs My Investment Growth) */}
               {holding && investmentGrowthData.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
@@ -280,7 +285,7 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
 
                   <div className="h-72 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={investmentGrowthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <AreaChart data={investmentGrowthData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="schemeHoldGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
@@ -288,8 +293,8 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 9 }} />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 9 }} tickFormatter={(v) => `₹${v}`} />
+                        <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 9 }} minTickGap={32} />
+                        <YAxis stroke="#64748b" tick={{ fontSize: 9 }} width={52} tickFormatter={formatCompactINR} />
                         <Tooltip
                           content={({ active, payload, label }) => {
                             if (active && payload && payload.length) {
@@ -300,7 +305,7 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                                   <div className="text-cyan-400 font-bold">Valuation: ₹{d.valuation.toLocaleString('en-IN')}</div>
                                   <div className="text-slate-400">Cost: ₹{d.invested.toLocaleString('en-IN')}</div>
                                   <div className={d.profit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                                    P&L: {d.profit >= 0 ? '+' : ''}₹{d.profit.toLocaleString('en-IN')}
+                                    P&L: {d.profit >= 0 ? '+' : '-'}₹{Math.abs(d.profit).toLocaleString('en-IN')}
                                   </div>
                                 </div>
                               );
@@ -317,7 +322,7 @@ export default function SchemeDetailModal({ schemeCode, onClose, onOpenAddTx }) 
                           fill="url(#schemeHoldGrad)"
                         />
                         <Area
-                          type="monotone"
+                          type="stepAfter"
                           dataKey="invested"
                           name="Invested Amount"
                           stroke="#64748b"

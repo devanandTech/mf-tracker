@@ -1,6 +1,9 @@
 /**
  * Interest & Maturity Calculation Utility for FDs, RDs, and 15-Day Alert Detector
  */
+import { parseDDMMYYYY, toInputDateFormat } from './dateUtils.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Calculate FD Maturity Amount & Periodic Payout
@@ -33,6 +36,16 @@ export function calculateFDMaturity(principalStr, rateStr, tenureMonthsStr, payo
       maturityAmount: P,
       periodicPayout: Math.round(quarterlyPayout * 100) / 100,
       totalInterestPaid: Math.round((quarterlyPayout * totalQuarters) * 100) / 100
+    };
+  }
+
+  if (payoutFrequency === 'Yearly') {
+    const yearlyPayout = P * (r / 100);
+    const totalYears = Math.floor(months / 12);
+    return {
+      maturityAmount: P,
+      periodicPayout: Math.round(yearlyPayout * 100) / 100,
+      totalInterestPaid: Math.round((yearlyPayout * totalYears) * 100) / 100
     };
   }
 
@@ -75,11 +88,63 @@ export function calculateRDMaturity(installmentStr, rateStr, tenureMonthsStr) {
  */
 export function calculateMaturityDate(startDateStr, tenureMonthsStr) {
   if (!startDateStr) return '';
-  const d = new Date(startDateStr);
-  if (isNaN(d.getTime())) return '';
+  const d = parseDDMMYYYY(startDateStr);
+  if (!d || isNaN(d.getTime())) return '';
   const months = parseInt(tenureMonthsStr, 10) || 0;
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().split('T')[0];
+  // Clamp to month end so 31 Jan + 1 month is 28/29 Feb, not 3 Mar
+  const target = new Date(d.getFullYear(), d.getMonth() + months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(d.getDate(), lastDay));
+  return toInputDateFormat(target);
+}
+
+/**
+ * Value of an FD as of a date: principal plus interest accrued so far for cumulative FDs
+ * (quarterly compounding, capped at maturity); principal only when interest is paid out.
+ */
+export function calculateFDCurrentValue(fd, asOf = new Date()) {
+  const P = parseFloat(fd.principalAmount) || 0;
+  const r = parseFloat(fd.interestRate) || 0;
+  const start = parseDDMMYYYY(fd.startDate);
+  if (P <= 0 || r <= 0 || !start || isNaN(start.getTime())) return P;
+  if ((fd.payoutFrequency || 'At Maturity') !== 'At Maturity') return P;
+
+  const maturity = parseDDMMYYYY(fd.maturityDate);
+  const end = maturity && !isNaN(maturity.getTime()) && asOf > maturity ? maturity : asOf;
+  const years = Math.max(0, (end.getTime() - start.getTime()) / DAY_MS / 365);
+  const value = P * Math.pow(1 + (r / 100) / 4, 4 * years);
+
+  const maturityAmount = parseFloat(fd.maturityAmount) || 0;
+  return maturityAmount > 0 ? Math.min(value, maturityAmount) : value;
+}
+
+/**
+ * Value of an RD as of a date: installments actually paid so far plus their accrued interest
+ */
+export function calculateRDCurrentValue(rd, asOf = new Date()) {
+  const M = parseFloat(rd.monthlyInstallment) || 0;
+  const r = parseFloat(rd.interestRate) || 0;
+  const tenure = parseInt(rd.tenureMonths, 10) || 0;
+  const start = parseDDMMYYYY(rd.startDate);
+  if (M <= 0 || !start || isNaN(start.getTime())) return parseFloat(rd.totalDeposited) || 0;
+  if (asOf < start) return 0;
+
+  const maturity = parseDDMMYYYY(rd.maturityDate);
+  const end = maturity && !isNaN(maturity.getTime()) && asOf > maturity ? maturity : asOf;
+
+  let paid = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (end.getDate() >= start.getDate()) paid += 1;
+  if (tenure > 0) paid = Math.min(paid, tenure);
+
+  let value = 0;
+  for (let k = 0; k < paid; k++) {
+    const paidOn = new Date(start.getFullYear(), start.getMonth() + k, start.getDate());
+    const years = Math.max(0, (end.getTime() - paidOn.getTime()) / DAY_MS / 365);
+    value += M * Math.pow(1 + (r / 100) / 4, 4 * years);
+  }
+
+  const maturityAmount = parseFloat(rd.maturityAmount) || 0;
+  return maturityAmount > 0 ? Math.min(value, maturityAmount) : value;
 }
 
 /**
@@ -88,15 +153,15 @@ export function calculateMaturityDate(startDateStr, tenureMonthsStr) {
 export function get15DayAlertStatus(targetDateStr) {
   if (!targetDateStr) return { isWithin15Days: false, isMatured: false, daysLeft: 999 };
 
-  const target = new Date(targetDateStr);
-  if (isNaN(target.getTime())) return { isWithin15Days: false, isMatured: false, daysLeft: 999 };
+  const parsed = parseDDMMYYYY(targetDateStr);
+  if (!parsed || isNaN(parsed.getTime())) return { isWithin15Days: false, isMatured: false, daysLeft: 999 };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
+  const target = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 
   const diffTime = target.getTime() - today.getTime();
-  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const daysLeft = Math.round(diffTime / DAY_MS);
 
   if (daysLeft < 0) {
     return { isWithin15Days: true, isMatured: true, daysLeft };

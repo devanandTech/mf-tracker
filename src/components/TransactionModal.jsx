@@ -3,19 +3,27 @@ import { usePortfolio } from '../context/PortfolioContext.jsx';
 import { searchSchemes, getSchemeDetails } from '../api/mfApi.js';
 import { findNAVForDate, inputToDDMMYYYY, toInputDateFormat } from '../utils/dateUtils.js';
 import { numberToWordsINR } from '../utils/numberUtils.js';
+import { sellableUnitsOn, UNIT_EPSILON } from '../utils/calculations.js';
 import {
   X,
   Search,
   Loader2,
-  Calendar,
-  DollarSign,
-  Layers,
   PlusCircle,
-  Sparkles,
-  Check
+  AlertTriangle
 } from 'lucide-react';
 
-export default function TransactionModal({ isOpen, onClose, initialSchemeName = '', initialSchemeCode = null, editTxData = null }) {
+const REDEEM_SHORTCUTS = [
+  { label: '25%', fraction: 0.25 },
+  { label: '50%', fraction: 0.5 },
+  { label: '75%', fraction: 0.75 },
+  { label: 'Redeem all', fraction: 1 }
+];
+
+// Folio units are tracked to 4 decimals; drop trailing zeros for the input box
+const formatUnits = (value) => String(parseFloat(Number(value).toFixed(4)));
+const formatAmount = (value) => String(parseFloat(Number(value).toFixed(2)));
+
+export default function TransactionModal({ isOpen, onClose, initialSchemeName = '', initialSchemeCode = null, initialType = 'BUY', editTxData = null }) {
   const { addTransaction, editTransaction, accounts, activeAccountId, allTransactions } = usePortfolio();
   const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
   const [selectedAccountId, setSelectedAccountId] = useState(activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId);
@@ -27,20 +35,25 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
   const [showDropdown, setShowDropdown] = useState(false);
 
   const [txType, setTxType] = useState('BUY'); // 'BUY' | 'SIP' | 'SELL'
+  const [sellMode, setSellMode] = useState('UNITS'); // 'UNITS' | 'AMOUNT' - which field the user enters when redeeming
   const [dateStr, setDateStr] = useState(() => toInputDateFormat(new Date()));
   const [nav, setNav] = useState('');
   const [amount, setAmount] = useState('');
   const [units, setUnits] = useState('');
   const [notes, setNotes] = useState('');
   const [isFetchingNAV, setIsFetchingNAV] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const dropdownRef = useRef(null);
 
-  // Calculate current available units held for the selected scheme and account
+  const isSell = txType === 'SELL';
+  const unitsDriven = isSell && sellMode === 'UNITS';
+
+  // Units that can be redeemed on the chosen date for the selected scheme and account
   const availableHoldingUnits = React.useMemo(() => {
     if (!selectedScheme || !selectedScheme.schemeCode) return 0;
     const code = parseInt(selectedScheme.schemeCode, 10);
-    
+
     // Filter transactions for this scheme (and account if specific account selected)
     const schemeTxs = allTransactions.filter(t => {
       const matchCode = parseInt(t.schemeCode, 10) === code;
@@ -50,24 +63,64 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       return matchCode && matchAcc && isNotEditingCurrent;
     });
 
-    let total = 0;
-    schemeTxs.forEach(t => {
-      const u = parseFloat(t.units || 0);
-      if (t.type === 'SELL') {
-        total -= u;
-      } else {
-        total += u;
-      }
-    });
+    return sellableUnitsOn(schemeTxs, dateStr);
+  }, [selectedScheme, selectedAccountId, allTransactions, editTxData, dateStr]);
 
-    return Math.max(0, total);
-  }, [selectedScheme, selectedAccountId, allTransactions, editTxData]);
+  // Latest form values for async NAV lookups, which resolve after the user may have typed more
+  const formRef = useRef({});
+  useEffect(() => {
+    formRef.current = { amount, units, unitsDriven, isSell, availableHoldingUnits };
+  });
+
+  // Keeps the derived field (units or amount) in step with the one the user is entering
+  const syncDerivedField = (navValue, { amountValue, unitsValue }) => {
+    const form = formRef.current;
+    const navNum = parseFloat(navValue);
+    if (!(navNum > 0)) return;
+
+    if (form.unitsDriven) {
+      const unitsNum = parseFloat(unitsValue ?? form.units);
+      if (unitsNum > 0) setAmount(formatAmount(unitsNum * navNum));
+    } else {
+      const amtNum = parseFloat(amountValue ?? form.amount);
+      if (!(amtNum > 0)) return;
+      // A redemption within a rupee of the full value means "everything": avoid leaving dust units
+      const fullValue = form.availableHoldingUnits * navNum;
+      if (form.isSell && form.availableHoldingUnits > 0 && Math.abs(fullValue - amtNum) <= 1) {
+        setUnits(formatUnits(form.availableHoldingUnits));
+      } else {
+        setUnits(formatUnits(amtNum / navNum));
+      }
+    }
+  };
+
+  // Fetch NAV for selected date whenever scheme or date changes
+  const fetchNAVForSelectedDate = async (code, inputDate, syncFields = true) => {
+    if (!code || !inputDate) return;
+    setIsFetchingNAV(true);
+    try {
+      const details = await getSchemeDetails(code);
+      if (details && details.data && details.data.length > 0) {
+        const fetchedNav = findNAVForDate(details.data, inputDate);
+        if (fetchedNav) {
+          setNav(String(fetchedNav));
+          if (syncFields) syncDerivedField(fetchedNav, {});
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching NAV for date:', e);
+    } finally {
+      setIsFetchingNAV(false);
+    }
+  };
 
   // Sync selectedAccountId, scheme, form fields whenever modal opens or mode changes
   useEffect(() => {
     if (!isOpen) return;
 
     const defaultAccId = accounts.find(a => a.id !== 'acc_all')?.id || 'acc_all';
+    setFormError('');
+    setSellMode('UNITS');
 
     if (editTxData) {
       setSelectedAccountId(editTxData.accountId || (activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId));
@@ -80,22 +133,25 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       setUnits(String(editTxData.units || ''));
       setNotes(editTxData.notes || '');
     } else {
+      const today = toInputDateFormat(new Date());
       setSelectedAccountId(activeAccountId !== 'acc_all' ? activeAccountId : defaultAccId);
-      if (initialSchemeCode && initialSchemeName) {
-        setSelectedScheme({ schemeCode: initialSchemeCode, schemeName: initialSchemeName });
-        setSchemeQuery(initialSchemeName);
-      } else {
-        setSelectedScheme(null);
-        setSchemeQuery('');
-      }
-      setTxType('BUY');
-      setDateStr(toInputDateFormat(new Date()));
+      setTxType(initialType || 'BUY');
+      setDateStr(today);
       setNav('');
       setAmount('');
       setUnits('');
       setNotes('');
+      if (initialSchemeCode && initialSchemeName) {
+        setSelectedScheme({ schemeCode: initialSchemeCode, schemeName: initialSchemeName });
+        setSchemeQuery(initialSchemeName);
+        // The form was just cleared, so there is nothing to derive from the fetched NAV yet
+        fetchNAVForSelectedDate(initialSchemeCode, today, false);
+      } else {
+        setSelectedScheme(null);
+        setSchemeQuery('');
+      }
     }
-  }, [isOpen, editTxData, initialSchemeCode, initialSchemeName, activeAccountId, accounts]);
+  }, [isOpen, editTxData, initialSchemeCode, initialSchemeName, initialType, activeAccountId, accounts]);
 
   // Search autocomplete
   useEffect(() => {
@@ -126,38 +182,17 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch NAV for selected date whenever scheme or date changes
-  const fetchNAVForSelectedDate = async (code, inputDate) => {
-    if (!code || !inputDate) return;
-    setIsFetchingNAV(true);
-    try {
-      const details = await getSchemeDetails(code);
-      if (details && details.data && details.data.length > 0) {
-        const fetchedNav = findNAVForDate(details.data, inputDate);
-        if (fetchedNav) {
-          setNav(String(fetchedNav));
-          // Recalculate units if amount exists
-          if (amount && parseFloat(amount) > 0) {
-            setUnits((parseFloat(amount) / fetchedNav).toFixed(4));
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching NAV for date:', e);
-    } finally {
-      setIsFetchingNAV(false);
-    }
-  };
-
   const handleSelectScheme = (item) => {
     setSelectedScheme(item);
     setSchemeQuery(item.schemeName);
     setShowDropdown(false);
+    setFormError('');
     fetchNAVForSelectedDate(item.schemeCode, dateStr);
   };
 
   const handleDateChange = (newDate) => {
     setDateStr(newDate);
+    setFormError('');
     if (selectedScheme) {
       fetchNAVForSelectedDate(selectedScheme.schemeCode, newDate);
     }
@@ -165,47 +200,66 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
 
   const handleAmountChange = (val) => {
     setAmount(val);
-    const amtNum = parseFloat(val);
-    const navNum = parseFloat(nav);
-    if (amtNum > 0 && navNum > 0) {
-      setUnits((amtNum / navNum).toFixed(4));
-    }
+    setFormError('');
+    syncDerivedField(nav, { amountValue: val });
+  };
+
+  const handleUnitsChange = (val) => {
+    setUnits(val);
+    setFormError('');
+    // For purchases the allotted units can be corrected by hand without touching the amount paid
+    if (unitsDriven) syncDerivedField(nav, { unitsValue: val });
   };
 
   const handleNavChange = (val) => {
     setNav(val);
-    const amtNum = parseFloat(amount);
-    const navNum = parseFloat(val);
-    if (amtNum > 0 && navNum > 0) {
-      setUnits((amtNum / navNum).toFixed(4));
-    }
+    setFormError('');
+    syncDerivedField(val, {});
+  };
+
+  const handleRedeemShortcut = (fraction) => {
+    if (availableHoldingUnits <= 0) return;
+    const redeemUnits = formatUnits(availableHoldingUnits * fraction);
+    setSellMode('UNITS');
+    setUnits(redeemUnits);
+    setFormError('');
+    const navNum = parseFloat(nav);
+    if (navNum > 0) setAmount(formatAmount(parseFloat(redeemUnits) * navNum));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedScheme) {
-      alert('Please search and select a Mutual Fund Scheme');
+      setFormError('Please search and select a Mutual Fund Scheme');
       return;
     }
-    if (!amount || parseFloat(amount) <= 0) {
-      alert('Please enter a valid investment amount');
+    if (!dateStr || dateStr > toInputDateFormat(new Date())) {
+      setFormError('Transaction date cannot be in the future');
       return;
     }
     if (!nav || parseFloat(nav) <= 0) {
-      alert('Please enter a valid NAV');
+      setFormError('Please enter a valid NAV');
+      return;
+    }
+    if (unitsDriven && !(parseFloat(units) > 0)) {
+      setFormError('Please enter the number of units to redeem');
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      setFormError(isSell ? 'Please enter a valid redemption amount' : 'Please enter a valid investment amount');
       return;
     }
 
     const unitsVal = parseFloat(units || (parseFloat(amount) / parseFloat(nav)).toFixed(4));
 
-    // Validate SELL transaction against current available units holding
-    if (txType === 'SELL') {
+    // Validate SELL transaction against units held on the redemption date
+    if (isSell) {
       if (availableHoldingUnits <= 0) {
-        alert(`Cannot record SELL transaction: You currently hold 0 units of "${selectedScheme.schemeName}".`);
+        setFormError(`You hold no redeemable units of "${selectedScheme.schemeName}" in this account on that date.`);
         return;
       }
-      if (unitsVal > availableHoldingUnits + 0.0001) {
-        alert(`Over-sell Warning: You are trying to sell ${unitsVal.toFixed(3)} units, but you only hold ${availableHoldingUnits.toFixed(3)} units of "${selectedScheme.schemeName}".`);
+      if (unitsVal > availableHoldingUnits + UNIT_EPSILON) {
+        setFormError(`You are redeeming ${unitsVal.toFixed(4)} units but only ${availableHoldingUnits.toFixed(4)} are available on that date.`);
         return;
       }
     }
@@ -224,27 +278,29 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
       notes
     };
 
-    if (editTxData) {
-      editTransaction({ ...editTxData, ...payload });
-    } else {
-      addTransaction(payload);
-    }
+    const saved = editTxData
+      ? editTransaction({ ...editTxData, ...payload })
+      : addTransaction(payload);
 
-    onClose();
+    if (saved !== false) onClose();
   };
 
   if (!isOpen) return null;
 
+  const realAccounts = accounts.filter(a => a.id !== 'acc_all');
+  const navNum = parseFloat(nav);
+  const availableValue = navNum > 0 ? availableHoldingUnits * navNum : 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto pt-safe pb-safe">
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden my-8">
-        
+
         {/* Header */}
         <div className="p-5 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <PlusCircle className="w-5 h-5 text-emerald-400" />
+            <PlusCircle className={`w-5 h-5 ${isSell ? 'text-rose-400' : 'text-emerald-400'}`} />
             <h3 className="text-lg font-bold text-white">
-              {editTxData ? 'Edit Transaction' : 'Add Mutual Fund Transaction'}
+              {editTxData ? 'Edit Transaction' : isSell ? 'Redeem Mutual Fund Units' : 'Add Mutual Fund Transaction'}
             </h3>
           </div>
           <button
@@ -257,7 +313,7 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs text-slate-300">
-          
+
           {/* Master Portfolio Account Selector */}
           <div>
             <label className="block text-slate-400 font-semibold mb-1">
@@ -265,10 +321,16 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
             </label>
             <select
               value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
+              onChange={(e) => {
+                setSelectedAccountId(e.target.value);
+                setFormError('');
+              }}
               className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-bold focus:outline-none focus:border-emerald-500"
             >
-              {accounts.filter(a => a.id !== 'acc_all').map(a => (
+              {realAccounts.length === 0 && (
+                <option value="acc_all">Default Portfolio</option>
+              )}
+              {realAccounts.map(a => (
                 <option key={a.id} value={a.id}>
                   {a.name} ({a.broker || 'Broker'})
                 </option>
@@ -318,20 +380,16 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
 
           {/* Transaction Type Buttons */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-slate-400 font-semibold">Transaction Type</label>
-              {selectedScheme && txType === 'SELL' && (
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  Available: {availableHoldingUnits.toFixed(4)} Units
-                </span>
-              )}
-            </div>
+            <label className="block text-slate-400 font-semibold mb-1">Transaction Type</label>
             <div className="grid grid-cols-3 gap-2">
               {['BUY', 'SIP', 'SELL'].map(type => (
                 <button
                   type="button"
                   key={type}
-                  onClick={() => setTxType(type)}
+                  onClick={() => {
+                    setTxType(type);
+                    setFormError('');
+                  }}
                   className={`py-2 rounded-xl font-bold text-xs transition-all border ${
                     txType === type
                       ? type === 'SELL'
@@ -340,7 +398,7 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
                       : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
                   }`}
                 >
-                  {type === 'SIP' ? 'SIP Purchase' : type}
+                  {type === 'SIP' ? 'SIP Purchase' : type === 'SELL' ? 'Redeem' : type}
                 </button>
               ))}
             </div>
@@ -353,6 +411,7 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
               <input
                 type="date"
                 value={dateStr}
+                max={toInputDateFormat(new Date())}
                 onChange={(e) => handleDateChange(e.target.value)}
                 className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
               />
@@ -378,17 +437,74 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
             </div>
           </div>
 
-          {/* Amount & Calculated Units */}
+          {/* Redemption helper: available units, entry mode and quick fractions */}
+          {isSell && selectedScheme && (
+            <div className="bg-rose-500/5 border border-rose-500/30 rounded-xl p-3 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase block">Available to redeem</span>
+                  <span className="font-mono font-bold text-rose-200">
+                    {availableHoldingUnits.toFixed(4)} units
+                    {availableValue > 0 && (
+                      <span className="text-slate-400 font-medium"> ≈ ₹{Math.round(availableValue).toLocaleString('en-IN')}</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 flex-shrink-0">
+                  {[
+                    { id: 'UNITS', label: 'By Units' },
+                    { id: 'AMOUNT', label: 'By Amount' }
+                  ].map(mode => (
+                    <button
+                      type="button"
+                      key={mode.id}
+                      onClick={() => setSellMode(mode.id)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold transition-all ${
+                        sellMode === mode.id
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5">
+                {REDEEM_SHORTCUTS.map(shortcut => (
+                  <button
+                    type="button"
+                    key={shortcut.label}
+                    disabled={availableHoldingUnits <= 0}
+                    onClick={() => handleRedeemShortcut(shortcut.fraction)}
+                    className="py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:border-rose-500/50 text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {shortcut.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Amount & Units: the redemption mode decides which one is typed and which is derived */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Total Amount (₹)</label>
+            <div className={unitsDriven ? 'sm:order-2' : ''}>
+              <label className="block text-slate-400 font-semibold mb-1">
+                {isSell ? 'Redemption Amount (₹)' : 'Total Amount (₹)'}
+                {unitsDriven && <span className="text-slate-500 font-medium"> • auto</span>}
+              </label>
               <input
                 type="number"
                 step="0.01"
-                placeholder="e.g. 10000"
+                placeholder={unitsDriven ? 'Units × NAV' : 'e.g. 10000'}
                 value={amount}
+                readOnly={unitsDriven}
                 onChange={(e) => handleAmountChange(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                className={`w-full px-3 py-2.5 border border-slate-700 rounded-xl font-mono focus:outline-none focus:border-emerald-500 ${
+                  unitsDriven ? 'bg-slate-800/60 text-slate-300' : 'bg-slate-800 text-slate-200'
+                }`}
               />
               {amount && parseFloat(amount) > 0 && (
                 <span className="text-[10px] text-emerald-400 font-semibold mt-1 block font-mono">
@@ -397,15 +513,21 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
               )}
             </div>
 
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Units Allotted</label>
+            <div className={unitsDriven ? 'sm:order-1' : ''}>
+              <label className="block text-slate-400 font-semibold mb-1">
+                {isSell ? 'Units to Redeem' : 'Units Allotted'}
+                {isSell && !unitsDriven && <span className="text-slate-500 font-medium"> • auto</span>}
+              </label>
               <input
                 type="number"
                 step="0.0001"
-                placeholder="Calculated automatically"
+                placeholder={unitsDriven ? 'e.g. 125.5' : 'Calculated automatically'}
                 value={units}
-                onChange={(e) => setUnits(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-800/60 border border-slate-700 rounded-xl text-slate-300 font-mono focus:outline-none focus:border-emerald-500"
+                readOnly={isSell && !unitsDriven}
+                onChange={(e) => handleUnitsChange(e.target.value)}
+                className={`w-full px-3 py-2.5 border border-slate-700 rounded-xl font-mono focus:outline-none focus:border-emerald-500 ${
+                  unitsDriven ? 'bg-slate-800 text-slate-200' : 'bg-slate-800/60 text-slate-300'
+                }`}
               />
             </div>
           </div>
@@ -415,12 +537,20 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
             <label className="block text-slate-400 font-semibold mb-1">Notes / Dip Tags (Optional)</label>
             <input
               type="text"
-              placeholder="e.g. Dip Buy - market down 3%"
+              placeholder={isSell ? 'e.g. Booked profit for house down payment' : 'e.g. Dip Buy - market down 3%'}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 focus:outline-none"
             />
           </div>
+
+          {/* Inline validation message */}
+          {formError && (
+            <div className="flex items-start gap-2 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 font-semibold">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{formError}</span>
+            </div>
+          )}
 
           {/* Submit */}
           <div className="pt-2 flex items-center justify-end gap-3">
@@ -433,9 +563,13 @@ export default function TransactionModal({ isOpen, onClose, initialSchemeName = 
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md shadow-emerald-500/20"
+              className={`px-5 py-2 rounded-xl font-bold shadow-md ${
+                isSell
+                  ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+              }`}
             >
-              {editTxData ? 'Save Changes' : 'Record Transaction'}
+              {editTxData ? 'Save Changes' : isSell ? 'Record Redemption' : 'Record Transaction'}
             </button>
           </div>
 

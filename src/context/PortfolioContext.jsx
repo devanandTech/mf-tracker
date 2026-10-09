@@ -19,9 +19,10 @@ import {
 import {
   calculateHoldings,
   calculatePortfolioSummary,
-  calculateAMCBreakdown
+  calculateAMCBreakdown,
+  findOversell
 } from '../utils/calculations.js';
-import { get15DayAlertStatus } from '../utils/interestUtils.js';
+import { get15DayAlertStatus, calculateFDCurrentValue, calculateRDCurrentValue } from '../utils/interestUtils.js';
 import { encryptData, decryptData } from '../utils/cryptoUtils.js';
 
 const PortfolioContext = createContext(null);
@@ -34,6 +35,37 @@ const INITIAL_SAMPLE_TRANSACTIONS = [];
 const INITIAL_FDS = [];
 const INITIAL_RDS = [];
 const INITIAL_INSURANCES = [];
+
+// Units are held per scheme per account (folio), so oversell checks are done per pair
+function introducesOversell(prevTxs, nextTxs) {
+  const groupByFolio = (txs) => {
+    const groups = {};
+    txs.forEach(t => {
+      const key = `${t.accountId || ''}|${parseInt(t.schemeCode, 10)}`;
+      (groups[key] = groups[key] || []).push(t);
+    });
+    return groups;
+  };
+  const prevGroups = groupByFolio(prevTxs);
+  const nextGroups = groupByFolio(nextTxs);
+  return Object.keys(nextGroups).some(key => findOversell(nextGroups[key]) && !findOversell(prevGroups[key] || []));
+}
+
+// Backups may come from older versions or be hand-edited; coerce the fields the UI does math on
+function normalizeImportedTransactions(list) {
+  return list
+    .filter(t => t && (t.schemeCode || t.schemeName || t.amount))
+    .map((t, idx) => ({
+      ...t,
+      id: t.id || `tx_import_${Date.now()}_${idx}`,
+      schemeCode: parseInt(t.schemeCode, 10) || 0,
+      schemeName: t.schemeName || `Scheme ${t.schemeCode || ''}`.trim(),
+      type: ['BUY', 'SIP', 'SELL'].includes(String(t.type || '').toUpperCase()) ? String(t.type).toUpperCase() : 'BUY',
+      amount: parseFloat(t.amount) || 0,
+      nav: parseFloat(t.nav) || 0,
+      units: parseFloat(t.units) || 0
+    }));
+}
 
 export function PortfolioProvider({ children }) {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -223,21 +255,27 @@ export function PortfolioProvider({ children }) {
   }, [insurances, activeAccountId]);
 
   // Compute MF holdings & summary
+  const allHoldings = useMemo(() => {
+    return calculateHoldings(filteredTransactions, schemeDetailsMap);
+  }, [filteredTransactions, schemeDetailsMap]);
+
+  // Active positions only; fully redeemed schemes are kept separately for realised P&L
   const holdings = useMemo(() => {
-    const rawHoldings = calculateHoldings(filteredTransactions, schemeDetailsMap);
-    if (selectedAMCFilter === 'ALL') return rawHoldings;
-    return rawHoldings.filter(h => h.fundHouse === selectedAMCFilter);
-  }, [filteredTransactions, schemeDetailsMap, selectedAMCFilter]);
+    return allHoldings.filter(h => !h.isExited && (selectedAMCFilter === 'ALL' || h.fundHouse === selectedAMCFilter));
+  }, [allHoldings, selectedAMCFilter]);
+
+  const exitedHoldings = useMemo(() => {
+    return allHoldings.filter(h => h.isExited && (selectedAMCFilter === 'ALL' || h.fundHouse === selectedAMCFilter));
+  }, [allHoldings, selectedAMCFilter]);
 
   const summary = useMemo(() => {
-    return calculatePortfolioSummary(holdings);
-  }, [holdings]);
+    return calculatePortfolioSummary(holdings, exitedHoldings);
+  }, [holdings, exitedHoldings]);
 
   // AMC Breakdown Analysis
   const amcBreakdown = useMemo(() => {
-    const allHoldings = calculateHoldings(filteredTransactions, schemeDetailsMap);
-    return calculateAMCBreakdown(allHoldings);
-  }, [filteredTransactions, schemeDetailsMap]);
+    return calculateAMCBreakdown(allHoldings.filter(h => !h.isExited));
+  }, [allHoldings]);
 
   // 15-DAY MATURITY & RENEWAL ALERTS DETECTOR
   const upcomingAlerts = useMemo(() => {
@@ -299,20 +337,23 @@ export function PortfolioProvider({ children }) {
 
   // Unified Multi-Entity Wealth Summary
   const globalWealthSummary = useMemo(() => {
-    const mfValuation = summary.totalValuation || 0;
-    const fdValuation = filteredFds.reduce((acc, f) => acc + parseFloat(f.principalAmount || 0), 0);
-    const rdValuation = filteredRds.reduce((acc, r) => acc + parseFloat(r.totalDeposited || (r.monthlyInstallment * 12) || 0), 0);
+    // Net worth is not narrowed by the AMC filter, which only scopes the MF views
+    const mfValuation = allHoldings.reduce((acc, h) => acc + h.currentValuation, 0);
+    const mfInvested = allHoldings.reduce((acc, h) => acc + h.netInvested, 0);
+    const fdValuation = filteredFds.reduce((acc, f) => acc + calculateFDCurrentValue(f), 0);
+    const rdValuation = filteredRds.reduce((acc, r) => acc + calculateRDCurrentValue(r), 0);
     const insuranceCover = filteredInsurances.reduce((acc, i) => acc + parseFloat(i.sumAssured || 0), 0);
     const totalNetWorth = mfValuation + fdValuation + rdValuation;
 
     return {
       mfValuation,
+      mfInvested,
       fdValuation,
       rdValuation,
       insuranceCover,
       totalNetWorth
     };
-  }, [summary, filteredFds, filteredRds, filteredInsurances]);
+  }, [allHoldings, filteredFds, filteredRds, filteredInsurances]);
 
   // Entity CRUD actions
   const addTransaction = (txData) => {
@@ -326,18 +367,35 @@ export function PortfolioProvider({ children }) {
       nav: parseFloat(txData.nav),
       units: parseFloat(txData.units)
     };
+    if (introducesOversell(transactions, [newTx, ...transactions])) {
+      showToast('Cannot redeem more units than were held on that date', 'error');
+      return false;
+    }
     setTransactions(prev => [newTx, ...prev]);
     showToast(`Added ${newTx.type} record for ${newTx.schemeName}`);
+    return true;
   };
 
   const editTransaction = (updatedTx) => {
-    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    const next = transactions.map(t => t.id === updatedTx.id ? updatedTx : t);
+    if (introducesOversell(transactions, next)) {
+      showToast('This change would leave a redemption with more units than were held', 'error');
+      return false;
+    }
+    setTransactions(next);
     showToast('Transaction updated');
+    return true;
   };
 
   const deleteTransaction = (id) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
+    const next = transactions.filter(t => t.id !== id);
+    if (introducesOversell(transactions, next)) {
+      showToast('Cannot delete: a later redemption depends on these units. Delete the redemption first.', 'error');
+      return false;
+    }
+    setTransactions(next);
     showToast('Transaction removed', 'info');
+    return true;
   };
 
   // FD CRUD
@@ -428,6 +486,12 @@ export function PortfolioProvider({ children }) {
   const deleteAccount = (id) => {
     if (id === 'acc_all') {
       showToast('Cannot delete default system account', 'error');
+      return;
+    }
+    const linkedCount = [transactions, fds, rds, insurances]
+      .reduce((count, list) => count + list.filter(item => item.accountId === id).length, 0);
+    if (linkedCount > 0) {
+      showToast(`Cannot delete: ${linkedCount} record(s) still belong to this account. Move or delete them first.`, 'error');
       return;
     }
     setAccounts(prev => prev.filter(a => a.id !== id));
@@ -613,7 +677,7 @@ export function PortfolioProvider({ children }) {
 
     // Case 1: Direct Array of Transactions (Legacy Export Format)
     if (Array.isArray(payload)) {
-      const validTxs = payload.filter(t => t && (t.schemeCode || t.schemeName || t.amount));
+      const validTxs = normalizeImportedTransactions(payload);
       if (validTxs.length > 0) {
         setTransactions(validTxs);
         saveTransactionsToDB(validTxs);
@@ -621,14 +685,14 @@ export function PortfolioProvider({ children }) {
       }
     } else if (typeof payload === 'object') {
       // Case 2: Standard Object Backup
-      if (Array.isArray(payload.transactions)) {
-        setTransactions(payload.transactions);
-        saveTransactionsToDB(payload.transactions);
-        importedTxCount = payload.transactions.length;
-      } else if (Array.isArray(payload.allTransactions)) {
-        setTransactions(payload.allTransactions);
-        saveTransactionsToDB(payload.allTransactions);
-        importedTxCount = payload.allTransactions.length;
+      const backupTxs = Array.isArray(payload.transactions)
+        ? payload.transactions
+        : Array.isArray(payload.allTransactions) ? payload.allTransactions : null;
+      if (backupTxs) {
+        const validTxs = normalizeImportedTransactions(backupTxs);
+        setTransactions(validTxs);
+        saveTransactionsToDB(validTxs);
+        importedTxCount = validTxs.length;
       }
 
       if (Array.isArray(payload.fds)) {
@@ -738,6 +802,7 @@ export function PortfolioProvider({ children }) {
         editInsurance,
         deleteInsurance,
         holdings,
+        exitedHoldings,
         summary,
         amcBreakdown,
         schemeDetailsMap,

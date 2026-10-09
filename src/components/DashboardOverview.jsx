@@ -2,6 +2,8 @@ import React from 'react';
 import { usePortfolio } from '../context/PortfolioContext.jsx';
 import PortfolioSummary from './PortfolioSummary.jsx';
 import PortfolioChart from './PortfolioChart.jsx';
+import BrokerPortfolioChart from './BrokerPortfolioChart.jsx';
+import AMCFilterChip from './AMCFilterChip.jsx';
 import {
   TrendingUp,
   AlertTriangle,
@@ -34,11 +36,24 @@ export default function DashboardOverview() {
 
   const activeAccountObj = accounts.find(a => a.id === activeAccountId) || { name: 'All Accounts' };
 
-  // Calculate allocation percentages
-  const totalNW = globalWealthSummary.totalNetWorth || 1;
-  const mfPct = Math.round((globalWealthSummary.mfValuation / totalNW) * 100);
-  const fdrdPct = Math.round(((globalWealthSummary.fdValuation + globalWealthSummary.rdValuation) / totalNW) * 100);
-  const insPct = Math.max(0, 100 - mfPct - fdrdPct);
+  const showMF = entityFilter === 'ALL' || entityFilter === 'MF';
+  const showFDRD = entityFilter === 'ALL' || entityFilter === 'FDRD';
+  const showInsurance = entityFilter === 'ALL' || entityFilter === 'INSURANCE';
+
+  // Net worth counts assets only (insurance cover is protection, not an asset), scoped by the asset filter
+  const assetSegments = [
+    { id: 'mf', label: 'MF', title: 'Mutual Funds', value: showMF ? globalWealthSummary.mfValuation : 0, color: 'bg-emerald-500' },
+    { id: 'fd', label: 'FD', title: 'Fixed Deposits', value: showFDRD ? globalWealthSummary.fdValuation : 0, color: 'bg-cyan-400' },
+    { id: 'rd', label: 'RD', title: 'Recurring Deposits', value: showFDRD ? globalWealthSummary.rdValuation : 0, color: 'bg-amber-400' }
+  ].filter(seg => seg.value > 0);
+
+  const displayedNetWorth = assetSegments.reduce((acc, seg) => acc + seg.value, 0);
+  const isInsuranceOnly = entityFilter === 'INSURANCE';
+  const heroValue = isInsuranceOnly ? globalWealthSummary.insuranceCover : displayedNetWorth;
+  const formatPct = (value) => {
+    const pct = (value / displayedNetWorth) * 100;
+    return pct >= 10 || pct === 0 ? pct.toFixed(0) : pct.toFixed(1);
+  };
 
   return (
     <div className="space-y-4">
@@ -91,12 +106,12 @@ export default function DashboardOverview() {
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <span className="px-2 py-0.2 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                Live Net Worth
+                {isInsuranceOnly ? 'Total Insurance Cover' : entityFilter === 'ALL' ? 'Live Net Worth' : 'Current Value'}
               </span>
               <span className="text-[11px] text-slate-400 font-semibold">• {activeAccountObj.name}</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-black font-mono text-white tracking-tight mt-1">
-              ₹{Math.round(globalWealthSummary.totalNetWorth).toLocaleString('en-IN')}
+              ₹{Math.round(heroValue).toLocaleString('en-IN')}
             </h1>
           </div>
 
@@ -106,17 +121,28 @@ export default function DashboardOverview() {
         </div>
 
         {/* Asset Distribution Progress Segment */}
-        <div className="mt-3.5 space-y-1.5">
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
-            <span>Asset Breakdown</span>
-            <span>MF {mfPct}% • FD/RD {fdrdPct}%</span>
+        {!isInsuranceOnly && (
+          <div className="mt-3.5 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
+              <span>Asset Breakdown</span>
+              <span>
+                {assetSegments.length === 0
+                  ? 'No assets recorded yet'
+                  : assetSegments.map(seg => `${seg.label} ${formatPct(seg.value)}%`).join(' • ')}
+              </span>
+            </div>
+            <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden flex border border-slate-800/80">
+              {assetSegments.map(seg => (
+                <div
+                  key={seg.id}
+                  style={{ width: `${(seg.value / displayedNetWorth) * 100}%` }}
+                  className={`${seg.color} h-full transition-all duration-500`}
+                  title={`${seg.title}: ₹${Math.round(seg.value).toLocaleString('en-IN')}`}
+                />
+              ))}
+            </div>
           </div>
-          <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden flex border border-slate-800/80">
-            <div style={{ width: `${mfPct}%` }} className="bg-emerald-500 h-full transition-all duration-500" title="Mutual Funds" />
-            <div style={{ width: `${fdrdPct}%` }} className="bg-cyan-400 h-full transition-all duration-500" title="FD & RD" />
-            <div style={{ width: `${insPct}%` }} className="bg-teal-400 h-full transition-all duration-500" title="Insurance" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 15-DAY MATURITY & RENEWAL WARNING BANNER */}
@@ -176,7 +202,7 @@ export default function DashboardOverview() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
         
         {/* Mutual Funds Valuation Card */}
-        <div
+        {showMF && <div
           onClick={() => setActiveTab('mf')}
           className="mobile-card-glass hover:border-emerald-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg cursor-pointer active-press transition-all group"
         >
@@ -190,27 +216,27 @@ export default function DashboardOverview() {
           <span className="text-[9px] text-slate-400 mt-0.5 block font-semibold">
             {holdings.length} Active Schemes →
           </span>
-        </div>
+        </div>}
 
         {/* FD & RD Valuation Card */}
-        <div
+        {showFDRD && <div
           onClick={() => setActiveTab('fdrd')}
           className="mobile-card-glass hover:border-cyan-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg cursor-pointer active-press transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400 mb-0.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-400">FD & RD Capital</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-400">FD & RD Value</span>
             <Landmark className="w-3.5 h-3.5 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
           <div className="text-lg sm:text-xl font-black font-mono text-cyan-300 mt-0.5">
             ₹{Math.round(globalWealthSummary.fdValuation + globalWealthSummary.rdValuation).toLocaleString('en-IN')}
           </div>
           <span className="text-[9px] text-slate-400 mt-0.5 block font-semibold">
-            Bank Deposits →
+            Deposits + accrued interest →
           </span>
-        </div>
+        </div>}
 
         {/* Insurance Cover Card */}
-        <div
+        {showInsurance && <div
           onClick={() => setActiveTab('insurance')}
           className="mobile-card-glass hover:border-teal-500/50 rounded-2xl p-3 sm:p-3.5 shadow-lg cursor-pointer active-press transition-all group col-span-2 lg:col-span-1"
         >
@@ -224,14 +250,16 @@ export default function DashboardOverview() {
           <span className="text-[9px] text-slate-400 mt-0.5 block font-semibold">
             Total Sum Assured →
           </span>
-        </div>
+        </div>}
 
       </div>
 
       {/* Asset Allocation & Performance Charts */}
-      {(entityFilter === 'ALL' || entityFilter === 'MF') && (
+      {showMF && (
         <>
+          <AMCFilterChip />
           <PortfolioSummary />
+          <BrokerPortfolioChart />
           <PortfolioChart />
         </>
       )}
